@@ -1,5 +1,8 @@
 name: Build LootBox APK
 
+# This workflow builds the app from LootBox-Android.zip (uploaded to the repo root),
+# so you only have to upload ONE file instead of many.
+
 on:
   push:
     branches: [main]
@@ -13,6 +16,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Unpack project from ZIP
+        run: |
+          if [ ! -f LootBox-Android.zip ]; then
+            echo "::error::LootBox-Android.zip was not found in the repo root. Upload it first."
+            exit 1
+          fi
+          rm -rf build_src
+          mkdir build_src
+          unzip -q LootBox-Android.zip -d build_src
+          if [ ! -f build_src/LootBox/app/build.gradle.kts ]; then
+            echo "::error::The ZIP does not contain LootBox/app/build.gradle.kts"
+            exit 1
+          fi
+          echo "Unpacked OK"
 
       - uses: actions/setup-java@v4
         with:
@@ -48,10 +66,11 @@ jobs:
           echo "KEY_ALIAS=$KS_ALIAS" >> "$GITHUB_ENV"
 
       - name: Build debug APK
+        working-directory: build_src/LootBox
         run: gradle assembleDebug --stacktrace -PverCode=${{ github.run_number }}
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk LootBox.apk
+        run: cp build_src/LootBox/app/build/outputs/apk/debug/app-debug.apk LootBox.apk
 
       - uses: actions/upload-artifact@v4
         with:
