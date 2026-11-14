@@ -33,7 +33,16 @@ jobs:
             echo "::error::Add the secrets KEYSTORE_BASE64, KEYSTORE_PASSWORD and KEY_ALIAS (Settings > Secrets and variables > Actions)"
             exit 1
           fi
-          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/lootbox.keystore"
+          # Ignore stray spaces / line breaks / quotes that can sneak in when pasting on a phone
+          echo "KEYSTORE_BASE64 length: ${#KS_B64} characters (the original is 3512)"
+          if ! printf '%s' "$KS_B64" | tr -d '[:space:]"' | base64 -d > "$RUNNER_TEMP/lootbox.keystore"; then
+            echo "::error::KEYSTORE_BASE64 is not valid base64. It was probably cut off or changed while copying. Paste the whole value again."
+            exit 1
+          fi
+          if ! keytool -list -keystore "$RUNNER_TEMP/lootbox.keystore" -storepass "$KS_PASS" -alias "$KS_ALIAS" > /dev/null 2>&1; then
+            echo "::error::Keystore could not be opened. Check that KEYSTORE_BASE64 is complete and that KEYSTORE_PASSWORD and KEY_ALIAS are correct."
+            exit 1
+          fi
           echo "KEYSTORE_FILE=$RUNNER_TEMP/lootbox.keystore" >> "$GITHUB_ENV"
           echo "KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
           echo "KEY_ALIAS=$KS_ALIAS" >> "$GITHUB_ENV"
