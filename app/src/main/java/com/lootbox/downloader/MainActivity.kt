@@ -26,7 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.net.URLUtil
+import android.webkit.URLUtil
 
 private val Ink = Color(0xFF0B1020)
 private val Panel = Color(0xFF171F35)
