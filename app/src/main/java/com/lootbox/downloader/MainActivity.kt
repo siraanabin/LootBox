@@ -9,6 +9,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,8 +59,16 @@ fun LootBoxApp() {
             )
         ) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(22.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(9.dp)
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.linearGradient(listOf(Cyan.copy(alpha = .9f), Purple, Cyan.copy(alpha = .35f))),
+                        shape = RoundedCornerShape(28.dp)
+                    )
+                    .clip(RoundedCornerShape(28.dp)),
+                contentPadding = PaddingValues(20.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 item {
