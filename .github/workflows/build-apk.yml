@@ -1,33 +1,59 @@
 name: Build LootBox APK
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+
+      - name: Prepare signing key
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          if [ -z "$KS_B64" ] || [ -z "$KS_PASS" ] || [ -z "$KS_ALIAS" ]; then
+            echo "::error::Add the secrets KEYSTORE_BASE64, KEYSTORE_PASSWORD and KEY_ALIAS (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/lootbox.keystore"
+          echo "KEYSTORE_FILE=$RUNNER_TEMP/lootbox.keystore" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=$KS_ALIAS" >> "$GITHUB_ENV"
+
       - name: Build debug APK
-        run: gradle assembleDebug
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+        run: gradle assembleDebug --stacktrace -PverCode=${{ github.run_number }}
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk LootBox.apk
+
+      - uses: actions/upload-artifact@v4
         with:
           name: LootBox-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          path: LootBox.apk
+
+      # The app checks this release to offer in-app updates.
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: LootBox 1.${{ github.run_number }}
+          files: LootBox.apk
+          make_latest: true
