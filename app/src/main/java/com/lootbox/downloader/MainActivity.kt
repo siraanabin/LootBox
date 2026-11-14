@@ -151,6 +151,13 @@ private fun InfoCard(title: String, value: String, modifier: Modifier = Modifier
 private fun startDownload(context: Context, rawUrl: String, onStatus: (String) -> Unit) {
     val value = rawUrl.trim()
     val uri = runCatching { Uri.parse(value) }.getOrNull()
+    val host = uri?.host?.lowercase().orEmpty()
+    if (host == "youtu.be" || host == "youtube.com" || host.endsWith(".youtube.com") ||
+        host == "m.youtube.com" || host == "youtube-nocookie.com" || host.endsWith(".youtube-nocookie.com")) {
+        onStatus("YouTube links are not direct files. LootBox supports direct file URLs only.")
+        Toast.makeText(context, "YouTube link isn't a direct download link", Toast.LENGTH_LONG).show()
+        return
+    }
     if (uri == null || uri.scheme !in listOf("http", "https") || uri.host.isNullOrBlank()) {
         onStatus("Enter a valid http or https direct file link.")
         return
