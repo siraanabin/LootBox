@@ -18,12 +18,13 @@ jobs:
 
       - name: Extract Version 2 source
         run: |
+          cp .github/workflows/build-apk.yml /tmp/installer-workflow.yml
           unzip -q LootBox-Android.zip -d /tmp/lootbox-v2
           test -f /tmp/lootbox-v2/LootBox/app/build.gradle.kts
           sed -i 's/versionName = "1\./versionName = "2./' /tmp/lootbox-v2/LootBox/app/build.gradle.kts
-          sed -i 's/name: LootBox 1\./name: LootBox 2./' /tmp/lootbox-v2/LootBox/.github/workflows/build-apk.yml
           rm -rf app build.gradle.kts settings.gradle.kts gradle.properties README.md .gitignore
           cp -a /tmp/lootbox-v2/LootBox/. .
+          cp /tmp/installer-workflow.yml .github/workflows/build-apk.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
