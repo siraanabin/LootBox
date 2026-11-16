@@ -3,6 +3,7 @@ package com.siraanabin.lootbox
 import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.graphics.Color
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
@@ -39,7 +40,7 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var gestureText: TextView
     private lateinit var brightnessBar: SeekBar
     private lateinit var volumeBar: SeekBar
-    private lateinit var playButton: TextView
+    private lateinit var playButton: ImageButton
     private lateinit var speedButton: TextView
     private lateinit var fitButton: TextView
     private lateinit var audio: AudioManager
@@ -56,6 +57,7 @@ class PlayerActivity : AppCompatActivity() {
     private var baseBrightness = 0.65f
     private var baseVolume = 0
     private var gestureStartPosition = 0L
+    private var pendingGesturePosition = 0L
     private var gestureStartX = 0f
     private var gestureStartY = 0f
     private var gestureMode = GestureMode.NONE
@@ -69,11 +71,11 @@ class PlayerActivity : AppCompatActivity() {
             val duration = p.duration.takeIf { it > 0 && it != C.TIME_UNSET } ?: 0L
             if (!userSeeking) {
                 seek.progress = if (duration > 0) (p.currentPosition * 1000 / duration).toInt().coerceIn(0, 1000) else 0
+                currentTime.text = formatTime(p.currentPosition)
+                totalTime.text = if (showRemaining && duration > 0) "-${formatTime((duration - p.currentPosition).coerceAtLeast(0))}" else formatTime(duration)
             }
-            currentTime.text = formatTime(p.currentPosition)
-            totalTime.text = if (showRemaining && duration > 0) "-${formatTime((duration - p.currentPosition).coerceAtLeast(0))}" else formatTime(duration)
-            if (p.currentPosition > 0L) savePosition()
-            handler.postDelayed(this, 500)
+            if (p.currentPosition > 0L && p.playbackState != Player.STATE_ENDED) savePosition()
+            handler.postDelayed(this, 500L)
         }
     }
 
@@ -115,10 +117,10 @@ class PlayerActivity : AppCompatActivity() {
         setupPlayer(uri)
         setupButtons()
         setupGestures()
+        setupSeekBar()
         updateFitLabel()
         updateSpeedLabel()
         handler.post(updateUi)
-        scheduleHide()
     }
 
     private fun setupSliders() {
@@ -146,6 +148,8 @@ class PlayerActivity : AppCompatActivity() {
     private fun setupPlayer(uri: String) {
         playerView.useController = false
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        playerView.setKeepContentOnPlayerReset(true)
+        playerView.setShutterBackgroundColor(Color.BLACK)
         fitMode = prefs.getInt("fitMode", 0).coerceIn(0, 2)
         applyFitMode()
 
@@ -168,13 +172,18 @@ class PlayerActivity : AppCompatActivity() {
                 }
                 updatePlayIcon()
             }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
                     updatePlayIcon()
                     scheduleHide()
                 }
-                if (playbackState == Player.STATE_ENDED) showControls()
+                if (playbackState == Player.STATE_ENDED) {
+                    prefs.edit().remove(positionKey(uri)).apply()
+                    showControls()
+                }
             }
+
             override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
                 updateSpeedLabel()
             }
@@ -184,13 +193,19 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupButtons() {
-        findViewById<View>(R.id.btnPlay).setOnClickListener {
+        playButton.setOnClickListener {
             val p = player ?: return@setOnClickListener
             if (p.isPlaying || p.playWhenReady) p.pause() else p.play()
             showControls()
         }
-        findViewById<View>(R.id.btnBack).setOnClickListener { seekRelative(-10_000L); showGesture("−10 seconds") }
-        findViewById<View>(R.id.btnForward).setOnClickListener { seekRelative(10_000L); showGesture("+10 seconds") }
+        findViewById<View>(R.id.btnBack).setOnClickListener {
+            seekRelative(-10_000L)
+            showGesture("−10 seconds")
+        }
+        findViewById<View>(R.id.btnForward).setOnClickListener {
+            seekRelative(10_000L)
+            showGesture("+10 seconds")
+        }
         findViewById<View>(R.id.btnRemaining).setOnClickListener {
             showRemaining = !showRemaining
             updateUi.run()
@@ -202,6 +217,7 @@ class PlayerActivity : AppCompatActivity() {
             prefs.edit().putInt("fitMode", fitMode).apply()
             updateFitLabel()
             showGesture(arrayOf("FIT", "FILL", "CROP")[fitMode])
+            scheduleHide()
         }
         findViewById<View>(R.id.btnLock).setOnClickListener { lockScreen() }
         findViewById<View>(R.id.btnUnlock).setOnClickListener { unlockScreen() }
@@ -210,7 +226,7 @@ class PlayerActivity : AppCompatActivity() {
             val speeds = floatArrayOf(1f, 1.25f, 1.5f, 2f)
             val current = p.playbackParameters.speed
             val nextSpeed = speeds.firstOrNull { it > current + 0.01f } ?: speeds.first()
-            // Media3 applies speed in-place and preserves the playback timeline position.
+            // Playback speed changes are applied to the existing timeline, not by recreating the player.
             p.setPlaybackSpeed(nextSpeed)
             updateSpeedLabel()
             showGesture("${nextSpeed}×")
@@ -219,10 +235,39 @@ class PlayerActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnPip).setOnClickListener { enterPip() }
     }
 
+    private fun setupSeekBar() {
+        seek.max = 1000
+        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
+                if (!fromUser) return
+                val duration = player?.duration?.takeIf { it > 0 && it != C.TIME_UNSET } ?: return
+                val preview = duration * progress / 1000L
+                currentTime.text = formatTime(preview)
+            }
+
+            override fun onStartTrackingTouch(bar: SeekBar) {
+                userSeeking = true
+                handler.removeCallbacks(hideControls)
+                showControls()
+            }
+
+            override fun onStopTrackingTouch(bar: SeekBar) {
+                val p = player
+                val duration = p?.duration?.takeIf { it > 0 && it != C.TIME_UNSET }
+                if (p != null && duration != null) {
+                    p.seekTo((duration * bar.progress / 1000L).coerceIn(0L, duration))
+                }
+                userSeeking = false
+                scheduleHide()
+            }
+        })
+    }
+
     private fun setupGestures() {
         val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean {
                 gestureStartPosition = player?.currentPosition ?: 0L
+                pendingGesturePosition = gestureStartPosition
                 gestureStartX = e.x
                 gestureStartY = e.y
                 baseBrightness = brightnessBar.progress / 100f
@@ -230,10 +275,12 @@ class PlayerActivity : AppCompatActivity() {
                 gestureMode = GestureMode.NONE
                 return true
             }
+
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 if (locked) unlockOverlay.visibility = View.VISIBLE else toggleControls()
                 return true
             }
+
             override fun onDoubleTap(e: MotionEvent): Boolean {
                 if (locked) return true
                 val forward = e.x > playerView.width / 2f
@@ -241,6 +288,7 @@ class PlayerActivity : AppCompatActivity() {
                 showGesture(if (forward) "+10 seconds" else "−10 seconds")
                 return true
             }
+
             override fun onLongPress(e: MotionEvent) {
                 if (locked) return
                 val p = player ?: return
@@ -249,6 +297,7 @@ class PlayerActivity : AppCompatActivity() {
                 p.setPlaybackSpeed(2f)
                 showGesture("2× SPEED")
             }
+
             override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
                 if (locked || e1 == null || longPressing) return locked
                 val dx = e2.x - gestureStartX
@@ -258,15 +307,17 @@ class PlayerActivity : AppCompatActivity() {
                     gestureMode = if (abs(dx) > abs(dy)) GestureMode.SEEK
                     else if (gestureStartX < playerView.width / 2f) GestureMode.BRIGHTNESS
                     else GestureMode.VOLUME
+                    if (gestureMode == GestureMode.SEEK) userSeeking = true
                     showControls()
                 }
+
                 when (gestureMode) {
                     GestureMode.SEEK -> {
                         val duration = player?.duration?.takeIf { it > 0 && it != C.TIME_UNSET } ?: Long.MAX_VALUE
                         val delta = (dx / playerView.width.coerceAtLeast(1) * 120_000L).toLong()
-                        val target = (gestureStartPosition + delta).coerceIn(0L, duration)
-                        player?.seekTo(target)
-                        showGesture(formatTime(target))
+                        pendingGesturePosition = (gestureStartPosition + delta).coerceIn(0L, duration)
+                        currentTime.text = formatTime(pendingGesturePosition)
+                        showGesture(formatTime(pendingGesturePosition))
                     }
                     GestureMode.BRIGHTNESS -> {
                         val value = (baseBrightness * 100f - dy / playerView.height.coerceAtLeast(1) * 100f).toInt().coerceIn(5, 100)
@@ -291,25 +342,35 @@ class PlayerActivity : AppCompatActivity() {
 
         playerView.setOnTouchListener { _, event ->
             detector.onTouchEvent(event)
-            if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
-                if (longPressing) {
-                    longPressing = false
-                    player?.setPlaybackSpeed(speedBeforeLongPress)
-                    showGesture("${speedBeforeLongPress}×")
+            when (event.actionMasked) {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (longPressing) {
+                        longPressing = false
+                        player?.setPlaybackSpeed(speedBeforeLongPress)
+                        showGesture("${speedBeforeLongPress}×")
+                    }
+                    if (gestureMode == GestureMode.SEEK) {
+                        player?.seekTo(pendingGesturePosition)
+                        userSeeking = false
+                    }
+                    if (gestureMode != GestureMode.NONE) scheduleHide()
+                    gestureMode = GestureMode.NONE
                 }
-                if (gestureMode != GestureMode.NONE) scheduleHide()
-                gestureMode = GestureMode.NONE
             }
             true
         }
     }
 
     private fun simpleSlider(change: (Int) -> Unit) = object : SeekBar.OnSeekBarChangeListener {
-        override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) { if (fromUser) change(value) }
+        override fun onProgressChanged(bar: SeekBar, value: Int, fromUser: Boolean) {
+            if (fromUser) change(value)
+        }
+
         override fun onStartTrackingTouch(bar: SeekBar) {
             handler.removeCallbacks(hideControls)
             showControls()
         }
+
         override fun onStopTrackingTouch(bar: SeekBar) { scheduleHide() }
     }
 
@@ -334,7 +395,9 @@ class PlayerActivity : AppCompatActivity() {
         speedButton.text = if (speed % 1f == 0f) "${speed.toInt()}×" else "${speed}×"
     }
 
-    private fun updatePlayIcon() { playButton.text = if (player?.isPlaying == true) "Ⅱ" else "▶" }
+    private fun updatePlayIcon() {
+        playButton.setImageResource(if (player?.isPlaying == true) R.drawable.ic_player_pause else R.drawable.ic_player_play)
+    }
 
     private fun seekRelative(deltaMs: Long) {
         val p = player ?: return
@@ -357,14 +420,16 @@ class PlayerActivity : AppCompatActivity() {
             controls.translationY = 8f
             controls.visibility = View.VISIBLE
         }
-        controls.animate().alpha(1f).translationY(0f).setDuration(180L).start()
+        controls.animate().cancel()
+        controls.animate().alpha(1f).translationY(0f).setDuration(190L).start()
         if (player?.isPlaying == true) scheduleHide()
     }
 
     private fun hideControlsNow() {
         handler.removeCallbacks(hideControls)
         controlsVisible = false
-        controls.animate().alpha(0f).translationY(8f).setDuration(160L).withEndAction {
+        controls.animate().cancel()
+        controls.animate().alpha(0f).translationY(8f).setDuration(180L).withEndAction {
             if (!controlsVisible && !locked) controls.visibility = View.GONE
         }.start()
     }
@@ -381,7 +446,6 @@ class PlayerActivity : AppCompatActivity() {
         controls.visibility = View.GONE
         controlsVisible = false
         unlockOverlay.visibility = View.VISIBLE
-        showGesture("SCREEN LOCKED")
     }
 
     private fun unlockScreen() {
@@ -419,7 +483,9 @@ class PlayerActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= 26) {
             try {
                 enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build())
-            } catch (_: Exception) { showGesture("PiP unavailable") }
+            } catch (_: Exception) {
+                showGesture("PiP unavailable")
+            }
         } else showGesture("PiP not supported")
     }
 
@@ -428,11 +494,14 @@ class PlayerActivity : AppCompatActivity() {
         super.onUserLeaveHint()
     }
 
-    override fun onPause() { savePosition(); super.onPause() }
+    override fun onPause() {
+        savePosition()
+        super.onPause()
+    }
 
     override fun onStop() {
         savePosition()
-        player?.pause()
+        if (Build.VERSION.SDK_INT < 26 || !isInPictureInPictureMode) player?.pause()
         super.onStop()
     }
 
