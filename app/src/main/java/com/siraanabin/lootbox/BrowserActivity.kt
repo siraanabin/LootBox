@@ -51,7 +51,7 @@ class BrowserActivity : AppCompatActivity() {
         address = EditText(this).apply {
             hint = "Search or enter website"
             textSize = 14f
-            singleLine = true
+            isSingleLine = true
             imeOptions = EditorInfo.IME_ACTION_GO
             setTextColor(android.graphics.Color.WHITE)
             setHintTextColor(android.graphics.Color.LTGRAY)
