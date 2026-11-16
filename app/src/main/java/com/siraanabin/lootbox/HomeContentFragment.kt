@@ -1,6 +1,7 @@
 package com.siraanabin.lootbox
 
 import android.content.ClipboardManager
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -27,6 +28,7 @@ class HomeContentFragment : Fragment() {
         val activity = requireActivity() as MainActivity
 
         b.settingsBtn.setOnClickListener { activity.openTab(R.id.nav_settings) }
+        b.browserBtn.setOnClickListener { startActivity(Intent(ctx, BrowserActivity::class.java)) }
         b.bookmarkBtn.setOnClickListener {
             val url = b.urlInput.text.toString().trim()
             val error = validateUrl(url)
