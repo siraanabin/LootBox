@@ -24,7 +24,9 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.TrackSelectionDialogBuilder
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlin.math.abs
@@ -155,7 +157,8 @@ class PlayerActivity : AppCompatActivity() {
         fitMode = prefs.getInt("fitMode", 0).coerceIn(0, 2)
         applyFitMode()
 
-        val p = ExoPlayer.Builder(this).build()
+        val renderersFactory = DefaultRenderersFactory(this).setEnableDecoderFallback(true)
+        val p = ExoPlayer.Builder(this, renderersFactory).build()
         player = p
         playerView.player = p
         p.setAudioAttributes(AudioAttributes.DEFAULT, true)
@@ -235,6 +238,22 @@ class PlayerActivity : AppCompatActivity() {
             scheduleHide()
         }
         findViewById<View>(R.id.btnPip).setOnClickListener { enterPip() }
+        findViewById<View>(R.id.btnAudio).setOnClickListener { showTrackDialog(C.TRACK_TYPE_AUDIO, "Audio track") }
+        findViewById<View>(R.id.btnSubtitles).setOnClickListener { showTrackDialog(C.TRACK_TYPE_TEXT, "Subtitles") }
+    }
+
+    private fun showTrackDialog(trackType: Int, title: String) {
+        val p = player ?: return
+        val available = p.currentTracks.groups.any { it.type == trackType && it.isSupported }
+        if (!available) {
+            showGesture(if (trackType == C.TRACK_TYPE_TEXT) "No subtitles available" else "No alternate audio")
+            return
+        }
+        TrackSelectionDialogBuilder(this, title, p, trackType)
+            .setShowDisableOption(trackType == C.TRACK_TYPE_TEXT)
+            .setAllowAdaptiveSelections(true)
+            .build().show()
+        scheduleHide()
     }
 
     private fun setupSeekBar() {
