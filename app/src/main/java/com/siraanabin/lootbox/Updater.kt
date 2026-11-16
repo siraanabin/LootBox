@@ -16,7 +16,7 @@ import kotlin.concurrent.thread
 /** In-app updates (from GitHub Releases) and the yt-dlp engine update. */
 object Updater {
 
-    private const val API = "https://api.github.com/repos/siraanabin/LootBox/releases/latest"
+    private const val MANIFEST = "https://raw.githubusercontent.com/siraanabin/LootBox/main/version.json"
 
     private class Info(val code: Int, val name: String, val apkUrl: String)
 
@@ -41,23 +41,18 @@ object Updater {
     }
 
     private fun fetch(): Info? {
-        val c = URL(API).openConnection() as HttpURLConnection
-        c.connectTimeout = 10000
-        c.readTimeout = 10000
-        c.setRequestProperty("Accept", "application/vnd.github+json")
+        val c = URL(MANIFEST).openConnection() as HttpURLConnection
+        c.connectTimeout = 15000
+        c.readTimeout = 15000
         c.setRequestProperty("User-Agent", "LootBox")
         try {
             if (c.responseCode != 200) return null
             val o = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
-            val code = o.getString("tag_name").substringAfterLast('-').toIntOrNull() ?: return null
-            val assets = o.getJSONArray("assets")
-            for (i in 0 until assets.length()) {
-                val a = assets.getJSONObject(i)
-                if (a.getString("name").endsWith(".apk")) {
-                    return Info(code, "1.$code", a.getString("browser_download_url"))
-                }
-            }
-            return null
+            val code = o.optInt("versionCode", -1)
+            val name = o.optString("versionName")
+            val apkUrl = o.optString("apkUrl")
+            if (code <= 0 || name.isBlank() || apkUrl.isBlank()) return null
+            return Info(code, name, apkUrl)
         } finally {
             c.disconnect()
         }
