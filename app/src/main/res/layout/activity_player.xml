@@ -54,7 +54,7 @@
                 android:paddingStart="8dp"
                 android:textColor="#F7F7FB"
                 android:textSize="14sp"
-                android:textStyle="medium" />
+                android:textStyle="normal" />
 
             <TextView
                 android:id="@+id/btnPip"
