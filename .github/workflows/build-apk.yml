@@ -1,4 +1,4 @@
-name: Install LootBox Version 2 and Build APK
+name: Build LootBox APK
 
 on:
   push:
@@ -8,30 +8,15 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: lootbox-build
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Extract Version 2 source
-        run: |
-          cp .github/workflows/build-apk.yml /tmp/installer-workflow.yml
-          unzip -q LootBox-Android.zip -d /tmp/lootbox-v2
-          test -f /tmp/lootbox-v2/LootBox/app/build.gradle.kts
-          sed -i 's/versionName = "1\./versionName = "2./' /tmp/lootbox-v2/LootBox/app/build.gradle.kts
-          rm -rf app build.gradle.kts settings.gradle.kts gradle.properties README.md .gitignore
-          cp -a /tmp/lootbox-v2/LootBox/. .
-          cp /tmp/installer-workflow.yml .github/workflows/build-apk.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "Install LootBox Version 2 source"
-            git push origin HEAD:main
-          fi
 
       - uses: actions/setup-java@v4
         with:
@@ -42,7 +27,7 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Build Version 2 debug APK
+      - name: Build APK
         run: gradle assembleDebug --stacktrace -PverCode=${{ github.run_number }}
 
       - name: Rename APK
@@ -50,13 +35,30 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: LootBox-Version-2-APK
+          name: LootBox-APK
           path: LootBox.apk
 
-      - name: Publish Version 2 release
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: LootBox 2.${{ github.run_number }}
           files: LootBox.apk
           make_latest: true
+
+      - name: Publish update manifest without GitHub API
+        run: |
+          cat > version.json <<'JSON'
+          {
+            "versionCode": ${{ github.run_number }},
+            "versionName": "2.${{ github.run_number }}",
+            "apkUrl": "https://github.com/siraanabin/LootBox/releases/latest/download/LootBox.apk"
+          }
+          JSON
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update LootBox release manifest [skip ci]"
+            git push origin HEAD:main
+          fi
