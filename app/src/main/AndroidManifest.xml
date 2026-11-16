@@ -35,6 +35,8 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".PlayerActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden" android:theme="@style/Theme.LootBox.Player" android:supportsPictureInPicture="true" />
+
         <service
             android:name=".DownloadService"
             android:exported="false"

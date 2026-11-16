@@ -91,8 +91,17 @@ fun toast(ctx: Context, msg: String) {
 object FileActions {
     fun open(ctx: Context, item: DownloadItem) {
         if (item.uri.isEmpty()) return
+        val mime = item.mime.ifEmpty { "*/*" }.lowercase()
+        val isMedia = mime.startsWith("video/") || mime.startsWith("audio/") ||
+            item.fileName.lowercase().let { it.endsWith(".mp4") || it.endsWith(".mkv") || it.endsWith(".webm") || it.endsWith(".mp3") || it.endsWith(".m4a") || it.endsWith(".aac") || it.endsWith(".opus") }
+        if (isMedia) {
+            ctx.startActivity(Intent(ctx, PlayerActivity::class.java)
+                .putExtra(PlayerActivity.EXTRA_URI, item.uri)
+                .putExtra(PlayerActivity.EXTRA_TITLE, item.title.ifEmpty { item.fileName }))
+            return
+        }
         val intent = Intent(Intent.ACTION_VIEW)
-            .setDataAndType(Uri.parse(item.uri), item.mime.ifEmpty { "*/*" })
+            .setDataAndType(Uri.parse(item.uri), mime)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         try {
             ctx.startActivity(intent)
