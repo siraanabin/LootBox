@@ -54,7 +54,7 @@ object Updater {
             for (i in 0 until assets.length()) {
                 val a = assets.getJSONObject(i)
                 if (a.getString("name").endsWith(".apk")) {
-                    return Info(code, "1.$code", a.getString("browser_download_url"))
+                    return Info(code, "2.$code", a.getString("browser_download_url"))
                 }
             }
             return null
