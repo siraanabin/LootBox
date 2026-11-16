@@ -52,6 +52,7 @@ class PlayerActivity : AppCompatActivity() {
     private var locked = false
     private var fitMode = 0
     private var controlsVisible = true
+    private var resumeOnStart = false
     private var longPressing = false
     private var speedBeforeLongPress = 1f
     private var baseBrightness = 0.65f
@@ -94,6 +95,7 @@ class PlayerActivity : AppCompatActivity() {
                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             )
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        volumeControlStream = AudioManager.STREAM_MUSIC
 
         playerView = findViewById(R.id.playerView)
         controls = findViewById(R.id.controlsOverlay)
@@ -494,6 +496,14 @@ class PlayerActivity : AppCompatActivity() {
         super.onUserLeaveHint()
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (resumeOnStart) {
+            resumeOnStart = false
+            player?.play()
+        }
+    }
+
     override fun onPause() {
         savePosition()
         super.onPause()
@@ -501,7 +511,9 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         savePosition()
-        if (Build.VERSION.SDK_INT < 26 || !isInPictureInPictureMode) player?.pause()
+        val shouldKeepPlaying = Build.VERSION.SDK_INT >= 26 && isInPictureInPictureMode
+        resumeOnStart = !shouldKeepPlaying && player?.isPlaying == true
+        if (!shouldKeepPlaying) player?.pause()
         super.onStop()
     }
 
