@@ -27,7 +27,22 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      - name: Prepare persistent signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "Missing KEYSTORE_BASE64 repository secret."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/lootbox.keystore"
+          echo "KEYSTORE_FILE=$RUNNER_TEMP/lootbox.keystore" >> "$GITHUB_ENV"
+
       - name: Build APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: gradle assembleDebug --stacktrace -PverCode=${{ github.run_number }}
 
       - name: Rename APK
