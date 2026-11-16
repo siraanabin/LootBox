@@ -12,12 +12,8 @@ import androidx.lifecycle.MutableLiveData
 import com.siraanabin.lootbox.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
-
     private lateinit var b: ActivityMainBinding
-
-    /** A link shared from another app (Share -> LootBox). The Home screen picks it up. */
     val sharedUrl = MutableLiveData<String?>()
-
     private val notifPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -25,9 +21,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
-
         b.nav.setOnItemSelectedListener { item ->
             val fragment: Fragment = when (item.itemId) {
+                R.id.nav_youtube -> YoutubeFragment()
                 R.id.nav_downloads -> DownloadsFragment()
                 R.id.nav_library -> LibraryFragment()
                 R.id.nav_settings -> SettingsFragment()
@@ -37,12 +33,9 @@ class MainActivity : AppCompatActivity() {
             true
         }
         if (savedInstanceState == null) b.nav.selectedItemId = R.id.nav_home
-
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
+        ) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         handleIntent(intent)
         if (savedInstanceState == null) Updater.check(this, true)
     }
