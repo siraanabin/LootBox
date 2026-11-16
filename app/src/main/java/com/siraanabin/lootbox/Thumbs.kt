@@ -26,7 +26,10 @@ object Thumbs {
         view.tag = key
         durationView?.visibility = View.GONE
         val canPreview = item.mime.startsWith("video/") || item.mime.startsWith("image/")
-        if (!canPreview || key.isEmpty()) { showIcon(view); return }
+        if (!canPreview || key.isEmpty()) {
+            showIcon(view)
+            return
+        }
         val cached = cache.get(key)
         if (cached != null) {
             view.clearColorFilter()
@@ -40,7 +43,10 @@ object Thumbs {
         pool.execute {
             var bmp: Bitmap? = null
             var dur: String? = null
-            try { bmp = app.contentResolver.loadThumbnail(Uri.parse(key), Size(400, 300), null) } catch (e: Exception) {}
+            try {
+                bmp = app.contentResolver.loadThumbnail(Uri.parse(key), Size(400, 300), null)
+            } catch (e: Exception) {
+            }
             if (item.mime.startsWith("video/")) {
                 try {
                     val r = MediaMetadataRetriever()
@@ -48,7 +54,8 @@ object Thumbs {
                     val ms = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
                     r.release()
                     if (ms != null) dur = formatDuration(ms)
-                } catch (e: Exception) {}
+                } catch (e: Exception) {
+                }
             }
             val finalBmp = bmp
             val finalDur = dur
@@ -72,13 +79,22 @@ object Thumbs {
         view.setImageResource(R.drawable.ic_file)
         view.setColorFilter(view.context.getColor(R.color.muted))
     }
+
     private fun showDuration(tv: TextView?, text: String?) {
         if (tv == null) return
-        if (text == null) tv.visibility = View.GONE
-        else { tv.text = text; tv.visibility = View.VISIBLE }
+        if (text == null) {
+            tv.visibility = View.GONE
+        } else {
+            tv.text = text
+            tv.visibility = View.VISIBLE
+        }
     }
+
     private fun formatDuration(ms: Long): String {
-        val s = ms / 1000; val h = s / 3600; val m = (s % 3600) / 60; val sec = s % 60
+        val s = ms / 1000
+        val h = s / 3600
+        val m = (s % 3600) / 60
+        val sec = s % 60
         return if (h > 0) String.format("%d:%02d:%02d", h, m, sec) else String.format("%02d:%02d", m, sec)
     }
 }

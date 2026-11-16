@@ -8,17 +8,23 @@ import com.yausername.youtubedl_android.YoutubeDL
 import kotlin.concurrent.thread
 
 class LootBoxApp : Application() {
+
     companion object {
         @Volatile var engineReady = false
         @Volatile var engineError: String = ""
         private val lock = java.lang.Object()
+
+        /** Blocks until the yt-dlp engine finished starting. Returns true when it is usable. */
         fun awaitEngine(timeoutMs: Long = 60_000): Boolean {
             val end = System.currentTimeMillis() + timeoutMs
             synchronized(lock) {
-                while (!engineReady && engineError.isEmpty() && System.currentTimeMillis() < end) lock.wait(500)
+                while (!engineReady && engineError.isEmpty() && System.currentTimeMillis() < end) {
+                    lock.wait(500)
+                }
             }
             return engineReady
         }
+
         fun markEngine(ok: Boolean, err: String = "") {
             synchronized(lock) {
                 engineReady = ok
@@ -42,6 +48,8 @@ class LootBoxApp : Application() {
             }
         }
         val dark = Prefs.get(this).getBoolean(Prefs.DARK, true)
-        AppCompatDelegate.setDefaultNightMode(if (dark) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO)
+        AppCompatDelegate.setDefaultNightMode(
+            if (dark) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
+        )
     }
 }

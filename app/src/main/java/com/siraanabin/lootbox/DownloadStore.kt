@@ -9,6 +9,7 @@ import org.json.JSONArray
 object DownloadStore {
     private val map = LinkedHashMap<String, DownloadItem>()
     private lateinit var prefs: SharedPreferences
+
     val live = MutableLiveData<List<DownloadItem>>(emptyList())
 
     @Synchronized
@@ -19,15 +20,23 @@ object DownloadStore {
             val arr = JSONArray(prefs.getString("items", "[]"))
             for (i in 0 until arr.length()) {
                 var item = DownloadItem.fromJson(arr.getJSONObject(i))
-                if (item.status == Status.DOWNLOADING || item.status == Status.QUEUED) item = item.copy(status = Status.PAUSED, speed = 0L)
+                // The service is not running after a fresh start, so unfinished work is paused.
+                if (item.status == Status.DOWNLOADING || item.status == Status.QUEUED) {
+                    item = item.copy(status = Status.PAUSED, speed = 0L)
+                }
                 map[item.id] = item
             }
-        } catch (e: Exception) { map.clear() }
+        } catch (e: Exception) {
+            map.clear()
+        }
         publish()
     }
 
-    @Synchronized fun all(): List<DownloadItem> = map.values.toList()
-    @Synchronized fun get(id: String): DownloadItem? = map[id]
+    @Synchronized
+    fun all(): List<DownloadItem> = map.values.toList()
+
+    @Synchronized
+    fun get(id: String): DownloadItem? = map[id]
 
     @Synchronized
     fun put(item: DownloadItem, persist: Boolean = true) {
@@ -43,7 +52,10 @@ object DownloadStore {
         publish()
     }
 
-    private fun publish() { live.postValue(map.values.sortedByDescending { it.addedAt }) }
+    private fun publish() {
+        live.postValue(map.values.sortedByDescending { it.addedAt })
+    }
+
     private fun save() {
         val arr = JSONArray()
         map.values.forEach { arr.put(it.toJson()) }

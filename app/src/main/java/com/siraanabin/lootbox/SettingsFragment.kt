@@ -13,8 +13,10 @@ import com.siraanabin.lootbox.databinding.FragmentSettingsBinding
 import java.io.File
 
 class SettingsFragment : Fragment() {
+
     private var _b: FragmentSettingsBinding? = null
     private val b get() = _b!!
+
     private var onCookiesPicked: (() -> Unit)? = null
 
     private val pickCookies =
@@ -39,6 +41,7 @@ class SettingsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val prefs = Prefs.get(requireContext())
+
         val keys = Prefs.QUALITY_KEYS
         val labels = Prefs.QUALITY_LABELS
         fun showQuality() {
@@ -54,7 +57,8 @@ class SettingsFragment : Fragment() {
                     prefs.edit().putString(Prefs.QUALITY, keys[which]).apply()
                     showQuality()
                     d.dismiss()
-                }.show()
+                }
+                .show()
         }
 
         val activity = requireActivity() as AppCompatActivity
@@ -70,30 +74,41 @@ class SettingsFragment : Fragment() {
                     .setTitle("Cookies")
                     .setItems(arrayOf("Replace file", "Remove cookies")) { _, which ->
                         if (which == 0) pickCookies.launch(arrayOf("*/*"))
-                        else { cookies.delete(); showCookies() }
-                    }.show()
-            } else pickCookies.launch(arrayOf("*/*"))
+                        else {
+                            cookies.delete()
+                            showCookies()
+                        }
+                    }
+                    .show()
+            } else {
+                pickCookies.launch(arrayOf("*/*"))
+            }
         }
         onCookiesPicked = { showCookies() }
 
         b.swPlaylist.isChecked = prefs.getBoolean(Prefs.PLAYLIST, false)
         b.swPlaylist.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean(Prefs.PLAYLIST, on).apply() }
+
         b.updateValue.text = "Version ${BuildConfig.VERSION_NAME}. Tap to check"
         b.updateRow.setOnClickListener { Updater.check(activity, false) }
         b.engineRow.setOnClickListener {
             toast(requireContext(), "Updating download engine…")
             Updater.updateEngine(activity)
         }
+
         b.swMulti.isChecked = prefs.getBoolean(Prefs.MULTI, true)
         b.swWifi.isChecked = prefs.getBoolean(Prefs.WIFI, false)
         b.swNotify.isChecked = prefs.getBoolean(Prefs.NOTIFY, true)
         b.swDark.isChecked = prefs.getBoolean(Prefs.DARK, true)
+
         b.swMulti.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean(Prefs.MULTI, on).apply() }
         b.swWifi.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean(Prefs.WIFI, on).apply() }
         b.swNotify.setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean(Prefs.NOTIFY, on).apply() }
         b.swDark.setOnCheckedChangeListener { _, on ->
             prefs.edit().putBoolean(Prefs.DARK, on).apply()
-            AppCompatDelegate.setDefaultNightMode(if (on) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO)
+            AppCompatDelegate.setDefaultNightMode(
+                if (on) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
+            )
         }
     }
 
