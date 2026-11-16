@@ -8,6 +8,9 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.siraanabin.lootbox.databinding.FragmentHomeContentBinding
+import android.widget.TextView
+import android.view.Gravity
+import androidx.core.content.ContextCompat
 
 class HomeContentFragment : Fragment() {
 
@@ -24,6 +27,19 @@ class HomeContentFragment : Fragment() {
         val activity = requireActivity() as MainActivity
 
         b.settingsBtn.setOnClickListener { activity.openTab(R.id.nav_settings) }
+        b.bookmarkBtn.setOnClickListener {
+            val url = b.urlInput.text.toString().trim()
+            val error = validateUrl(url)
+            if (error != null) {
+                b.errorText.text = error
+                b.errorText.visibility = View.VISIBLE
+            } else {
+                LinkStore.addBookmark(ctx, url)
+                renderSavedLinks()
+                toast(ctx, "Bookmark saved")
+            }
+        }
+        renderSavedLinks()
 
         b.pasteBtn.setOnClickListener {
             val cm = ctx.getSystemService(ClipboardManager::class.java)
@@ -49,6 +65,8 @@ class HomeContentFragment : Fragment() {
                 b.errorText.visibility = View.VISIBLE
             } else {
                 b.errorText.visibility = View.GONE
+                LinkStore.addHistory(ctx, url)
+                renderSavedLinks()
                 if (isMediaSite(url)) {
                     askQuality(url)
                 } else {
@@ -78,6 +96,44 @@ class HomeContentFragment : Fragment() {
             }
         }
     }
+
+    private fun renderSavedLinks() {
+        val ctx = requireContext()
+        fun render(container: android.widget.LinearLayout, urls: List<String>, bookmark: Boolean) {
+            container.removeAllViews()
+            urls.forEach { url ->
+                val row = TextView(ctx).apply {
+                    text = url
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+                    textSize = 13f
+                    setTextColor(ContextCompat.getColor(ctx, R.color.text))
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    setBackgroundResource(R.drawable.bg_field)
+                    isClickable = true
+                    setOnClickListener {
+                        b.urlInput.setText(url)
+                        b.urlInput.setSelection(b.urlInput.text.length)
+                    }
+                    setOnLongClickListener {
+                        LinkStore.remove(ctx, url, bookmark)
+                        renderSavedLinks()
+                        toast(ctx, if (bookmark) "Bookmark removed" else "History item removed")
+                        true
+                    }
+                }
+                val lp = android.widget.LinearLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT, dp(42)
+                ).apply { bottomMargin = dp(6) }
+                container.addView(row, lp)
+            }
+        }
+        render(b.bookmarksContainer, LinkStore.bookmarks(ctx), true)
+        render(b.historyContainer, LinkStore.history(ctx), false)
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun start(url: String, quality: String) {
         DownloadService.add(requireContext(), url, quality)
