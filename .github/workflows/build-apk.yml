@@ -48,6 +48,22 @@ jobs:
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk LootBox.apk
 
+      - name: Package player redesign source ZIP
+        run: |
+          mkdir -p player-redesign/app/src/main/java/com/siraanabin/lootbox
+          mkdir -p player-redesign/app/src/main/res/layout
+          mkdir -p player-redesign/app/src/main/res/drawable
+          cp app/src/main/java/com/siraanabin/lootbox/PlayerActivity.kt player-redesign/app/src/main/java/com/siraanabin/lootbox/
+          cp app/src/main/res/layout/activity_player.xml player-redesign/app/src/main/res/layout/
+          cp app/src/main/res/drawable/player_*.xml player-redesign/app/src/main/res/drawable/
+          cp PLAYER_REDESIGN_README.md player-redesign/README.md
+          (cd player-redesign && zip -qr ../LootBox-Premium-Player-Redesign.zip .)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LootBox-Premium-Player-Redesign
+          path: LootBox-Premium-Player-Redesign.zip
+
       - uses: actions/upload-artifact@v4
         with:
           name: LootBox-APK
