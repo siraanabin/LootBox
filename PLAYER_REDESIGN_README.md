@@ -24,14 +24,18 @@ Copy these files into the matching paths in your existing LootBox project:
 | `app/src/main/res/drawable/player_primary_button.xml` | Same path (new file) |
 | `app/src/main/res/drawable/player_side_panel.xml` | Same path (new file) |
 | `app/src/main/res/drawable/player_gesture_pill.xml` | Same path (new file) |
+| `app/src/main/res/drawable/ic_player_play.xml` | Same path (new file) |
+| `app/src/main/res/drawable/ic_player_pause.xml` | Same path (new file) |
 
 ## Included behavior
 - Premium dark player controls with animated show/hide.
 - Brightness and volume sliders are part of the same controls overlay, so they hide together.
 - Left/right vertical swipe gestures for brightness/volume.
-- Horizontal swipe seek relative to the gesture's starting position.
+- Horizontal swipe previews the target time and commits a single seek on finger-up to avoid repeated decoder seeks.
+- The timeline seekbar supports touch scrubbing and keeps the preview time stable while dragging.
 - Double-tap and buttons for ±10 seconds.
-- Playback speed cycle: 1×, 1.25×, 1.5×, 2×; long-press temporarily uses 2× and restores the previous speed.
+- Playback speed cycle: 1×, 1.25×, 1.5×, 2×; long-press temporarily uses 2× and restores the previous speed without recreating the player or resetting its timeline.
+- Crisp vector play/pause icons and retained video frame during player reset.
 - Screen lock with a dedicated unlock control.
 - FIT, FILL and CROP modes.
 - Playback position persistence using the existing `lootbox_player` preferences.
