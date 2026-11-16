@@ -3,6 +3,10 @@ package com.siraanabin.lootbox
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.ProgressBar
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
@@ -75,11 +79,26 @@ object Updater {
             )
             return
         }
+
+        val view = LayoutInflater.from(activity).inflate(R.layout.dialog_update_progress, null)
+        val progressBar = view.findViewById<ProgressBar>(R.id.updateProgressBar)
+        val percentText = view.findViewById<TextView>(R.id.updateProgressPercent)
+        val statusText = view.findViewById<TextView>(R.id.updateProgressStatus)
         val dialog = AlertDialog.Builder(activity)
-            .setTitle("Downloading update")
-            .setMessage("0%")
+            .setView(view)
             .setCancelable(false)
-            .show()
+            .create()
+        dialog.show()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.window?.setLayout(
+            (activity.resources.displayMetrics.widthPixels * 0.88f).toInt(),
+            android.view.WindowManager.LayoutParams.WRAP_CONTENT
+        )
+        view.alpha = 0f
+        view.scaleX = 0.96f
+        view.scaleY = 0.96f
+        view.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(220).start()
+
         thread(name = "update-download") {
             var error: String? = null
             val file = File(File(activity.cacheDir, "updates").apply { mkdirs() }, "LootBox.apk")
@@ -92,7 +111,14 @@ object Updater {
                 if (c.responseCode !in 200..299) throw java.io.IOException("HTTP ${c.responseCode}")
                 val total = c.contentLengthLong
                 var done = 0L
-                var last = 0
+                var last = -1
+                activity.runOnUiThread {
+                    progressBar.isIndeterminate = total <= 0
+                    if (total <= 0) {
+                        percentText.text = "…"
+                        statusText.text = "Downloading update"
+                    }
+                }
                 c.inputStream.use { input ->
                     file.outputStream().use { out ->
                         val buf = ByteArray(64 * 1024)
@@ -102,10 +128,14 @@ object Updater {
                             out.write(buf, 0, n)
                             done += n
                             if (total > 0) {
-                                val p = (done * 100 / total).toInt()
+                                val p = (done * 100 / total).toInt().coerceIn(0, 100)
                                 if (p != last) {
                                     last = p
-                                    activity.runOnUiThread { dialog.setMessage("$p%") }
+                                    activity.runOnUiThread {
+                                        progressBar.setProgress(p, true)
+                                        percentText.text = "$p%"
+                                        statusText.text = "Downloading LootBox ${info.name}"
+                                    }
                                 }
                             }
                         }
