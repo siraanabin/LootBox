@@ -57,7 +57,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: LootBox 2.${{ github.run_number }}
+          name: LootBox 3.${{ github.run_number }}
           files: LootBox.apk
           make_latest: true
 
@@ -66,7 +66,7 @@ jobs:
           cat > version.json <<'JSON'
           {
             "versionCode": ${{ github.run_number }},
-            "versionName": "2.${{ github.run_number }}",
+            "versionName": "3.${{ github.run_number }}",
             "apkUrl": "https://github.com/siraanabin/LootBox/releases/latest/download/LootBox.apk"
           }
           JSON
