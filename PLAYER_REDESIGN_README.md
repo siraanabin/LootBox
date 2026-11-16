@@ -48,3 +48,4 @@ The repository's GitHub Actions workflow also builds the APK automatically on pu
 
 ## Important
 This is a source replacement bundle, not a standalone Android project. Keep your existing root Gradle files, app Gradle file, manifest, downloader, updater, signing setup, and all unrelated resources unchanged. Always install and test the resulting APK on a device before distributing it.
+
