@@ -2,6 +2,8 @@ package com.siraanabin.lootbox
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -75,9 +77,15 @@ class YoutubeFragment : Fragment() {
         wv.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val host = request.url.host.orEmpty().lowercase()
-                return !(host == "youtube.com" || host.endsWith(".youtube.com") ||
+                val insideYoutube = host == "youtube.com" || host.endsWith(".youtube.com") ||
                     host == "youtu.be" || host.endsWith(".googlevideo.com") ||
-                    host.endsWith(".ytimg.com") || host.endsWith(".google.com"))
+                    host.endsWith(".ytimg.com") || host.endsWith(".google.com") ||
+                    host.endsWith(".youtube-nocookie.com")
+                if (!insideYoutube && (request.url.scheme == "https" || request.url.scheme == "http")) {
+                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(request.url.toString()))) }
+                    return true
+                }
+                return !insideYoutube
             }
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 progress?.visibility = View.VISIBLE
@@ -96,6 +104,11 @@ class YoutubeFragment : Fragment() {
         frame.addView(wv)
         root.addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         if (state == null) wv.loadUrl("https://m.youtube.com/")
+        return root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        val wv = webView ?: return
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (wv.canGoBack()) wv.goBack() else {
@@ -104,7 +117,6 @@ class YoutubeFragment : Fragment() {
                 }
             }
         })
-        return root
     }
 
     override fun onDestroyView() {
