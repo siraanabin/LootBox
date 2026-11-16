@@ -91,21 +91,18 @@
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
-            <TextView
+            <ImageButton
                 android:id="@+id/btnPlay"
                 android:layout_width="78dp"
                 android:layout_height="78dp"
                 android:layout_marginStart="24dp"
                 android:layout_marginEnd="24dp"
                 android:background="@drawable/player_primary_button"
-                android:clickable="true"
                 android:contentDescription="Play or pause"
-                android:focusable="true"
-                android:gravity="center"
-                android:text="Ⅱ"
-                android:textColor="#FFFFFF"
-                android:textSize="32sp"
-                android:textStyle="bold" />
+                android:padding="25dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_player_pause"
+                android:tint="#FFFFFF" />
 
             <TextView
                 android:id="@+id/btnForward"
@@ -257,6 +254,8 @@
         <LinearLayout
             android:layout_width="46dp"
             android:layout_height="158dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:layout_gravity="center_vertical|start"
             android:layout_marginStart="12dp"
             android:background="@drawable/player_side_panel"
@@ -287,6 +286,8 @@
         <LinearLayout
             android:layout_width="46dp"
             android:layout_height="158dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:layout_gravity="center_vertical|end"
             android:layout_marginEnd="12dp"
             android:background="@drawable/player_side_panel"
