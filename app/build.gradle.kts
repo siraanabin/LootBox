@@ -15,7 +15,7 @@ android {
         minSdk = 29
         targetSdk = 34
         versionCode = verCode
-        versionName = "2.$verCode"
+        versionName = "3.$verCode"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
     packaging {
