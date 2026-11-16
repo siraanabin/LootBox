@@ -26,6 +26,7 @@ class LibraryFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val ctx = requireContext()
+        b.recycleBtn.setOnClickListener { showRecycleBin() }
         val adapter = LibraryAdapter(
             onOpen = { FileActions.open(ctx, it) },
             onMenu = { anchor, item -> showMenu(anchor, item) }
@@ -46,7 +47,7 @@ class LibraryFragment : Fragment() {
         menu.menu.add(0, 1, 0, "Open")
         menu.menu.add(0, 2, 1, "Share")
         menu.menu.add(0, 3, 2, "Rename")
-        menu.menu.add(0, 4, 3, "Delete")
+        menu.menu.add(0, 4, 3, "Move to Recycle Bin")
         menu.setOnMenuItemClickListener { m ->
             when (m.itemId) {
                 1 -> FileActions.open(ctx, item)
@@ -88,18 +89,65 @@ class LibraryFragment : Fragment() {
     private fun confirmDelete(item: DownloadItem) {
         val ctx = requireContext()
         MaterialAlertDialogBuilder(ctx)
-            .setTitle("Delete file?")
+            .setTitle("Move to Recycle Bin?")
             .setMessage(item.fileName)
-            .setPositiveButton("Delete") { _, _ ->
-                try {
-                    ctx.contentResolver.delete(Uri.parse(item.uri), null, null)
-                } catch (e: Exception) {
-                    // The file may already be gone; still remove it from the list.
-                }
+            .setPositiveButton("Move") { _, _ ->
+                RecycleStore.add(ctx, item)
                 DownloadStore.remove(item.id)
+                toast(ctx, "Moved to Recycle Bin")
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun showRecycleBin() {
+        val ctx = requireContext()
+        val items = RecycleStore.all(ctx)
+        if (items.isEmpty()) {
+            MaterialAlertDialogBuilder(ctx).setTitle("Recycle Bin")
+                .setMessage("Recycle Bin is empty")
+                .setPositiveButton("OK", null).show()
+            return
+        }
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("Recycle Bin · ${items.size}")
+            .setItems(items.map { it.title }.toTypedArray()) { _, which ->
+                val item = items[which]
+                MaterialAlertDialogBuilder(ctx)
+                    .setTitle(item.title)
+                    .setItems(arrayOf("Restore to Library", "Delete permanently", "Cancel")) { _, action ->
+                        when (action) {
+                            0 -> {
+                                DownloadStore.put(item.copy(status = Status.COMPLETED))
+                                RecycleStore.remove(ctx, item.id)
+                                toast(ctx, "File restored")
+                            }
+                            1 -> MaterialAlertDialogBuilder(ctx)
+                                .setTitle("Delete permanently?")
+                                .setMessage("This cannot be undone.")
+                                .setNegativeButton("Cancel", null)
+                                .setPositiveButton("Delete") { _, _ ->
+                                    try { ctx.contentResolver.delete(Uri.parse(item.uri), null, null) } catch (_: Exception) {}
+                                    RecycleStore.remove(ctx, item.id)
+                                    toast(ctx, "Deleted permanently")
+                                }.show()
+                        }
+                    }.show()
+            }
+            .setNegativeButton("Close", null)
+            .setNeutralButton("Empty Bin") { _, _ ->
+                MaterialAlertDialogBuilder(ctx)
+                    .setTitle("Empty Recycle Bin?")
+                    .setMessage("All files in the bin will be permanently deleted.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Empty") { _, _ ->
+                        RecycleStore.all(ctx).forEach { item ->
+                            try { ctx.contentResolver.delete(Uri.parse(item.uri), null, null) } catch (_: Exception) {}
+                        }
+                        RecycleStore.clear(ctx)
+                        toast(ctx, "Recycle Bin emptied")
+                    }.show()
+            }.show()
     }
 
     override fun onDestroyView() {
