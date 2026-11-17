@@ -1,79 +1,114 @@
 package com.siraanabin.lootbox
 
 import android.annotation.SuppressLint
-import android.graphics.Bitmap
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.TextView
+import android.widget.ProgressBar
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
 
 class YoutubeFragment : Fragment() {
     private var webView: WebView? = null
-    private var progress: android.widget.ProgressBar? = null
+    private var progress: ProgressBar? = null
+    private var searchField: EditText? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
         val ctx = requireContext()
         val root = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(android.graphics.Color.rgb(16, 17, 20))
+            setBackgroundColor(Color.rgb(11, 14, 19))
         }
-        val bar = LinearLayout(ctx).apply {
+
+        // LootBox search stays at the top; YouTube's own logo/header is hidden in the page.
+        val searchBar = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(8), dp(12), dp(8))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(30, 34, 43))
+                cornerRadius = dp(28).toFloat()
+            }
+            setPadding(dp(14), 0, dp(8), 0)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
+            ).apply { setMargins(dp(12), dp(8), dp(12), dp(8)) }
         }
-        val title = TextView(ctx).apply {
-            text = "YouTube"
-            textSize = 20f
-            setTextColor(android.graphics.Color.WHITE)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            layoutParams = LinearLayout.LayoutParams(0, dp(44), 1f)
-            gravity = Gravity.CENTER_VERTICAL
+        val searchIcon = ImageButton(ctx).apply {
+            setImageResource(android.R.drawable.ic_menu_search)
+            setColorFilter(Color.WHITE)
+            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+            contentDescription = "Search YouTube"
+            isFocusable = false
         }
-        val refresh = ImageButton(ctx).apply {
-            contentDescription = "Refresh YouTube"
-            setImageResource(android.R.drawable.ic_popup_sync)
-            setColorFilter(android.graphics.Color.WHITE)
-            setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            setOnClickListener { webView?.reload() }
+        searchBar.addView(searchIcon, LinearLayout.LayoutParams(dp(38), dp(44)))
+        val input = EditText(ctx).apply {
+            hint = "Search YouTube..."
+            setHintTextColor(Color.rgb(160, 166, 180))
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            isSingleLine = true
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+            setPadding(dp(8), 0, dp(4), 0)
         }
-        bar.addView(title)
-        bar.addView(refresh, LinearLayout.LayoutParams(dp(44), dp(44)))
-        root.addView(bar)
+        searchField = input
+        searchBar.addView(input, LinearLayout.LayoutParams(0, dp(48), 1f))
+        val clear = ImageButton(ctx).apply {
+            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            setColorFilter(Color.LTGRAY)
+            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+            contentDescription = "Clear search"
+            setOnClickListener { input.text?.clear() }
+        }
+        searchBar.addView(clear, LinearLayout.LayoutParams(dp(40), dp(44)))
+        root.addView(searchBar)
 
         val frame = FrameLayout(ctx)
-        val p = android.widget.ProgressBar(ctx, null, android.R.attr.progressBarStyleHorizontal).apply {
+        val p = ProgressBar(ctx, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             progress = 0
-            progressTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
-            indeterminateTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+            progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(37, 99, 235))
+            indeterminateTintList = android.content.res.ColorStateList.valueOf(Color.rgb(37, 99, 235))
         }
         progress = p
         frame.addView(p, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(2), Gravity.TOP))
-        val wv = WebView(ctx)
+
+        val wv = WebView(ctx).apply {
+            setBackgroundColor(Color.rgb(11, 14, 19))
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = true
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            settings.setSupportMultipleWindows(false)
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.safeBrowsingEnabled = true
+            addJavascriptInterface(DownloadBridge(), "LootBoxBridge")
+        }
         webView = wv
-        wv.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        wv.settings.javaScriptEnabled = true
-        wv.settings.domStorageEnabled = true
-        wv.settings.mediaPlaybackRequiresUserGesture = true
-        wv.settings.javaScriptCanOpenWindowsAutomatically = false
-        wv.settings.setSupportMultipleWindows(false)
-        wv.settings.allowFileAccess = false
-        wv.settings.allowContentAccess = false
-        wv.settings.safeBrowsingEnabled = true
+        wv.layoutParams = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        )
         wv.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val host = request.url.host.orEmpty().lowercase()
@@ -87,12 +122,15 @@ class YoutubeFragment : Fragment() {
                 }
                 return !insideYoutube
             }
+
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 progress?.visibility = View.VISIBLE
                 progress?.progress = 8
             }
+
             override fun onPageFinished(view: WebView, url: String?) {
                 progress?.visibility = View.GONE
+                injectYoutubeLayout(view)
             }
         }
         wv.webChromeClient = object : WebChromeClient() {
@@ -102,9 +140,100 @@ class YoutubeFragment : Fragment() {
             }
         }
         frame.addView(wv)
-        root.addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(frame, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
+
+        fun runSearch() {
+            val query = input.text?.toString()?.trim().orEmpty()
+            if (query.isNotEmpty()) {
+                wv.loadUrl("https://m.youtube.com/results?search_query=" + Uri.encode(query))
+            }
+        }
+        searchIcon.setOnClickListener { runSearch() }
+        input.setOnEditorActionListener { _, actionId, event ->
+            val enter = event?.keyCode == KeyEvent.KEYCODE_ENTER
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || enter) {
+                runSearch()
+                true
+            } else false
+        }
+
         if (state == null) wv.loadUrl("https://m.youtube.com/")
         return root
+    }
+
+    private fun injectYoutubeLayout(view: WebView) {
+        val script = """
+            (function() {
+              if (!document.getElementById('lootbox-youtube-style')) {
+                var style = document.createElement('style');
+                style.id = 'lootbox-youtube-style';
+                style.textContent = [
+                  'ytm-mobile-topbar-renderer, ytm-header, .mobile-topbar-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-mini-guide-renderer { display:none !important; }',
+                  'ytm-rich-item-renderer, ytm-video-with-context-renderer, ytd-rich-item-renderer { width:100vw !important; max-width:none !important; margin-left:calc((100% - 100vw)/2) !important; margin-right:calc((100% - 100vw)/2) !important; padding-left:0 !important; padding-right:0 !important; }',
+                  'ytm-thumbnail, ytm-thumbnail img, ytm-thumbnail-overlay-time-status-renderer, .thumbnail, .thumbnail img { border-radius:0 !important; }',
+                  'ytm-thumbnail, .thumbnail { width:100vw !important; max-width:100vw !important; }',
+                  'ytm-thumbnail img, .thumbnail img { width:100% !important; height:auto !important; aspect-ratio:16/9 !important; object-fit:cover !important; }',
+                  '.lootbox-download { position:absolute !important; right:12px !important; top:50% !important; transform:translateY(-50%) !important; width:48px !important; height:48px !important; border:0 !important; border-radius:50% !important; background:#073b38 !important; color:#2dd4bf !important; display:flex !important; align-items:center !important; justify-content:center !important; z-index:20 !important; padding:0 !important; }',
+                  '.lootbox-download svg { width:25px !important; height:25px !important; fill:none !important; stroke:#2dd4bf !important; stroke-width:2.5 !important; }'
+                ].join('');
+                document.head.appendChild(style);
+              }
+              function addDownloadButtons() {
+                document.querySelectorAll('ytm-rich-item-renderer, ytm-video-with-context-renderer, ytd-rich-item-renderer').forEach(function(card) {
+                  var link = card.querySelector('a[href*="/watch?v="]');
+                  if (!link) return;
+                  var parsed;
+                  try { parsed = new URL(link.href, location.href); } catch (e) { return; }
+                  var videoId = parsed.searchParams.get('v');
+                  if (!videoId || card.querySelector('.lootbox-download')) return;
+                  var info = card.querySelector('ytm-media-item, .media-item-info, .details, #details') || card;
+                  info.style.position = 'relative';
+                  info.style.paddingRight = '72px';
+                  var button = document.createElement('button');
+                  button.className = 'lootbox-download';
+                  button.type = 'button';
+                  button.setAttribute('aria-label', 'Download video');
+                  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 20h16"/></svg>';
+                  button.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (window.LootBoxBridge && window.LootBoxBridge.download) {
+                      window.LootBoxBridge.download('https://www.youtube.com/watch?v=' + encodeURIComponent(videoId));
+                    }
+                  });
+                  info.appendChild(button);
+                });
+              }
+              document.querySelectorAll('ytm-reel-shelf-renderer, ytm-shorts-lockup-view-model, ytm-reel-item-renderer').forEach(function(el) {
+                el.style.display = 'none';
+              });
+              addDownloadButtons();
+              if (!window.__lootboxYoutubeObserver) {
+                window.__lootboxYoutubeObserver = new MutationObserver(function() {
+                  document.querySelectorAll('ytm-reel-shelf-renderer, ytm-shorts-lockup-view-model, ytm-reel-item-renderer').forEach(function(el) {
+                    el.style.display = 'none';
+                  });
+                  addDownloadButtons();
+                });
+                window.__lootboxYoutubeObserver.observe(document.documentElement, { childList:true, subtree:true });
+              }
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
+    }
+
+    private inner class DownloadBridge {
+        @JavascriptInterface
+        fun download(url: String) {
+            val appContext = context?.applicationContext ?: return
+            if (!isAdded || !url.startsWith("https://www.youtube.com/watch")) return
+            activity?.runOnUiThread {
+                DownloadService.add(appContext, url)
+                Toast.makeText(appContext, "Added to Downloads", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -122,12 +251,14 @@ class YoutubeFragment : Fragment() {
     override fun onDestroyView() {
         webView?.apply {
             stopLoading()
+            removeJavascriptInterface("LootBoxBridge")
             loadUrl("about:blank")
             removeAllViews()
             destroy()
         }
         webView = null
         progress = null
+        searchField = null
         super.onDestroyView()
     }
 
