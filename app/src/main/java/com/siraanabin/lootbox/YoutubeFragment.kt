@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
@@ -66,7 +65,7 @@ class YoutubeFragment : Fragment() {
             setHintTextColor(Color.rgb(160, 166, 180))
             setTextColor(Color.WHITE)
             textSize = 16f
-            singleLine = true
+            isSingleLine = true
             imeOptions = EditorInfo.IME_ACTION_SEARCH
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
