@@ -147,7 +147,7 @@ class YoutubeFragment : Fragment() {
                 super.onReceivedError(view, request, error)
                 if (request.isForMainFrame && !youtubeFallbackAttempted && isAdded) {
                     youtubeFallbackAttempted = true
-                    view.post { view.loadUrl("https://www.youtube.com/") }
+                    view.post { view.loadUrl("https://m.youtube.com/") }
                 }
             }
 
@@ -302,9 +302,18 @@ class YoutubeFragment : Fragment() {
               if (style.parentNode !== target) target.appendChild(style);
             }
             ensureLootBoxStyle();
+            // Avoid writing identical inline styles: MutationObserver watches the whole
+            // page, so repeated style writes here can otherwise create an endless loop.
+            function setImportantIfChanged(element, property, value) {
+              if (!element) return;
+              if (element.style.getPropertyValue(property) !== value ||
+                  element.style.getPropertyPriority(property) !== 'important') {
+                element.style.setProperty(property, value, 'important');
+              }
+            }
             function hideShorts() {
               document.querySelectorAll('ytm-reel-shelf-renderer, ytm-shorts-lockup-view-model, ytm-reel-item-renderer, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts]').forEach(function(el) {
-                el.style.setProperty('display', 'none', 'important');
+                setImportantIfChanged(el, 'display', 'none');
               });
             }
             function addDownloadButtons() {
@@ -347,19 +356,19 @@ class YoutubeFragment : Fragment() {
                 var stickyPlayer = player.closest(
                   '#player-container-id, #player-container, ytm-player, #player-container-inner'
                 ) || player;
-                stickyPlayer.style.setProperty('position', 'sticky', 'important');
-                stickyPlayer.style.setProperty('top', '0', 'important');
-                stickyPlayer.style.setProperty('z-index', '30', 'important');
-                stickyPlayer.style.setProperty('width', '100%', 'important');
-                stickyPlayer.style.setProperty('max-width', '100%', 'important');
-                stickyPlayer.style.setProperty('aspect-ratio', '16 / 9', 'important');
-                stickyPlayer.style.setProperty('background', '#000', 'important');
+                setImportantIfChanged(stickyPlayer, 'position', 'sticky');
+                setImportantIfChanged(stickyPlayer, 'top', '0px');
+                setImportantIfChanged(stickyPlayer, 'z-index', '30');
+                setImportantIfChanged(stickyPlayer, 'width', '100%');
+                setImportantIfChanged(stickyPlayer, 'max-width', '100%');
+                setImportantIfChanged(stickyPlayer, 'aspect-ratio', '16 / 9');
+                setImportantIfChanged(stickyPlayer, 'background', '#000');
               }
               var watch = document.querySelector('ytm-watch, ytd-watch-flexy');
               if (watch) {
-                watch.style.setProperty('margin-top', '0', 'important');
-                watch.style.setProperty('padding-top', '0', 'important');
-                watch.style.setProperty('overflow', 'visible', 'important');
+                setImportantIfChanged(watch, 'margin-top', '0px');
+                setImportantIfChanged(watch, 'padding-top', '0px');
+                setImportantIfChanged(watch, 'overflow', 'visible');
               }
             }
             function applyLootBoxFeed() { ensureLootBoxStyle(); hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); }
