@@ -70,7 +70,7 @@ object Updater {
         // Try GitHub's Contents API first, then fall back to raw.githubusercontent.com.
         // The fallback avoids a total update-check failure when the unauthenticated API is rate-limited.
         val cacheBust = System.currentTimeMillis()
-        val apiError: Exception
+        var apiError: Exception = java.io.IOException("GitHub Contents API failed")
         try {
             val apiUrl = "$MANIFEST&cacheBust=$cacheBust"
             val c = URL(apiUrl).openConnection() as HttpURLConnection
