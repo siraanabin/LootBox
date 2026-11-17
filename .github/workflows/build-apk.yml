@@ -49,13 +49,17 @@ jobs:
             exit 1
           fi
           # Keep the active importer/build workflow and repository automation intact.
-          rsync -a --delete --exclude='.git/' --exclude='.github/' "$ROOT/" ./
+          rsync -a --delete --exclude='.git/' --exclude='.github/' --exclude='version.json' "$ROOT/" ./
           rm -f "$ARCHIVE"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Import LootBox project from uploaded ZIP [skip ci]"
-          git push origin HEAD:main
+          if ! git diff --cached --quiet; then
+            git commit -m "Import LootBox project from uploaded ZIP [skip ci]"
+            git push origin HEAD:main
+          else
+            echo "ZIP source matches the current repository; no import commit needed."
+          fi
           echo "imported=true" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v4
@@ -82,7 +86,7 @@ jobs:
         id: calculate_version
         run: |
           CURRENT_CODE=$(python3 -c 'import json; print(json.load(open("version.json")).get("versionCode", 0))')
-          if [ "$CURRENT_CODE" -lt 1016 ]; then CURRENT_CODE=1016; fi
+          if [ "$CURRENT_CODE" -lt 1022 ]; then CURRENT_CODE=1022; fi
           VERSION_CODE=$((CURRENT_CODE + 1))
           VERSION_NAME="3.$VERSION_CODE"
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
