@@ -107,10 +107,7 @@ class YoutubeFragment : Fragment() {
             // Keep WebView on the system-managed rendering path; forcing a hardware layer
             // can leave WebView content black on some Android GPU/driver combinations.
             settings.javaScriptEnabled = true
-            // YouTube can reject the Android WebView marker ("; wv") and render only its logo.
-            settings.userAgentString = settings.userAgentString
-                .replace("; wv", "")
-                .replace("Version/4.0 ", "")
+            // Keep Android WebView's default User-Agent; modifying it can break YouTube rendering.
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             settings.javaScriptCanOpenWindowsAutomatically = false
@@ -223,7 +220,7 @@ class YoutubeFragment : Fragment() {
 
         if (state == null) {
             youtubeFallbackAttempted = false
-            wv.loadUrl("https://m.youtube.com/")
+            wv.loadUrl("https://www.youtube.com/")
         }
         return root
     }
