@@ -165,61 +165,62 @@ class YoutubeFragment : Fragment() {
 
     private fun injectYoutubeLayout(view: WebView) {
         val script = """
-            (function() {
-              if (!document.getElementById('lootbox-youtube-style')) {
-                var style = document.createElement('style');
-                style.id = 'lootbox-youtube-style';
-                style.textContent = [
-                  'ytm-mobile-topbar-renderer, ytm-header, .mobile-topbar-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-mini-guide-renderer { display:none !important; }',
-                  'ytm-rich-item-renderer, ytm-video-with-context-renderer, ytd-rich-item-renderer { width:100vw !important; max-width:none !important; margin-left:calc((100% - 100vw)/2) !important; margin-right:calc((100% - 100vw)/2) !important; padding-left:0 !important; padding-right:0 !important; }',
-                  'ytm-thumbnail, ytm-thumbnail img, ytm-thumbnail-overlay-time-status-renderer, .thumbnail, .thumbnail img { border-radius:0 !important; }',
-                  'ytm-thumbnail, .thumbnail { width:100vw !important; max-width:100vw !important; }',
-                  'ytm-thumbnail img, .thumbnail img { width:100% !important; height:auto !important; aspect-ratio:16/9 !important; object-fit:cover !important; }',
-                  '.lootbox-download { position:absolute !important; right:12px !important; top:50% !important; transform:translateY(-50%) !important; width:48px !important; height:48px !important; border:0 !important; border-radius:50% !important; background:#073b38 !important; color:#2dd4bf !important; display:flex !important; align-items:center !important; justify-content:center !important; z-index:20 !important; padding:0 !important; }',
-                  '.lootbox-download svg { width:25px !important; height:25px !important; fill:none !important; stroke:#2dd4bf !important; stroke-width:2.5 !important; }'
-                ].join('');
-                document.head.appendChild(style);
-              }
-              function addDownloadButtons() {
-                document.querySelectorAll('ytm-rich-item-renderer, ytm-video-with-context-renderer, ytd-rich-item-renderer').forEach(function(card) {
-                  var link = card.querySelector('a[href*="/watch?v="]');
-                  if (!link) return;
-                  var parsed;
-                  try { parsed = new URL(link.href, location.href); } catch (e) { return; }
-                  var videoId = parsed.searchParams.get('v');
-                  if (!videoId || card.querySelector('.lootbox-download')) return;
-                  var info = card.querySelector('ytm-media-item, .media-item-info, .details, #details') || card;
-                  info.style.position = 'relative';
-                  info.style.paddingRight = '72px';
-                  var button = document.createElement('button');
-                  button.className = 'lootbox-download';
-                  button.type = 'button';
-                  button.setAttribute('aria-label', 'Download video');
-                  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 20h16"/></svg>';
-                  button.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    if (window.LootBoxBridge && window.LootBoxBridge.download) {
-                      window.LootBoxBridge.download('https://www.youtube.com/watch?v=' + encodeURIComponent(videoId));
-                    }
-                  });
-                  info.appendChild(button);
-                });
-              }
-              document.querySelectorAll('ytm-reel-shelf-renderer, ytm-shorts-lockup-view-model, ytm-reel-item-renderer').forEach(function(el) {
-                el.style.display = 'none';
+          (function() {
+            if (!document.getElementById('lootbox-youtube-style')) {
+              var style = document.createElement('style');
+              style.id = 'lootbox-youtube-style';
+              style.textContent = [
+                /* Remove YouTube's own chrome and bottom tabs; LootBox provides search/navigation. */
+                'ytm-mobile-topbar-renderer, ytm-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-mini-guide-renderer, ytd-masthead, #masthead-container, ytd-mini-guide-renderer { display:none !important; }',
+                'ytm-reel-shelf-renderer, ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts] { display:none !important; }',
+                /* Full-width, square-corner video thumbnails. */
+                'ytm-rich-item-renderer, ytm-video-with-context-renderer, ytd-rich-item-renderer { display:block !important; box-sizing:border-box !important; width:100vw !important; max-width:none !important; margin-left:calc((100% - 100vw)/2) !important; margin-right:calc((100% - 100vw)/2) !important; padding-left:0 !important; padding-right:0 !important; }',
+                'ytm-thumbnail, ytm-thumbnail a, ytm-thumbnail img, ytd-thumbnail, ytd-thumbnail a, ytd-thumbnail img, .thumbnail, .thumbnail img { border-radius:0 !important; }',
+                'ytm-thumbnail, ytm-thumbnail a, ytd-thumbnail, ytd-thumbnail a, .thumbnail { display:block !important; width:100vw !important; max-width:100vw !important; }',
+                'ytm-thumbnail img, ytd-thumbnail img, .thumbnail img { display:block !important; width:100% !important; height:auto !important; aspect-ratio:16/9 !important; object-fit:cover !important; }',
+                '.lootbox-download { position:absolute !important; right:10px !important; top:50% !important; transform:translateY(-50%) !important; width:40px !important; height:40px !important; border:0 !important; border-radius:50% !important; background:#263bcb86 !important; color:#2dd4bf !important; display:flex !important; align-items:center !important; justify-content:center !important; z-index:999 !important; padding:0 !important; margin:0 !important; }',
+                '.lootbox-download svg { width:22px !important; height:22px !important; fill:none !important; stroke:#ffffff !important; stroke-width:2.2 !important; }'
+              ].join('');
+              document.head.appendChild(style);
+            }
+            function hideShorts() {
+              document.querySelectorAll('ytm-reel-shelf-renderer, ytm-shorts-lockup-view-model, ytm-reel-item-renderer, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts]').forEach(function(el) {
+                el.style.setProperty('display', 'none', 'important');
               });
-              addDownloadButtons();
-              if (!window.__lootboxYoutubeObserver) {
-                window.__lootboxYoutubeObserver = new MutationObserver(function() {
-                  document.querySelectorAll('ytm-reel-shelf-renderer, ytm-shorts-lockup-view-model, ytm-reel-item-renderer').forEach(function(el) {
-                    el.style.display = 'none';
-                  });
-                  addDownloadButtons();
+            }
+            function addDownloadButtons() {
+              document.querySelectorAll('ytm-rich-item-renderer, ytm-video-with-context-renderer, ytd-rich-item-renderer').forEach(function(card) {
+                var link = card.querySelector('a[href*="/watch?v="], a[href^="/watch"]');
+                if (!link || card.querySelector('.lootbox-download')) return;
+                var parsed;
+                try { parsed = new URL(link.href, location.href); } catch (e) { return; }
+                var videoId = parsed.searchParams.get('v');
+                if (!videoId) return;
+                var info = card.querySelector('ytm-media-item, .media-item-info, .details, #details, .media-channel, ytm-video-meta-block') || card;
+                info.style.setProperty('position', 'relative');
+                info.style.setProperty('padding-right', '60px');
+                var button = document.createElement('button');
+                button.className = 'lootbox-download';
+                button.type = 'button';
+                button.setAttribute('aria-label', 'Download video');
+                button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 20h16"/></svg>';
+                button.addEventListener('click', function(event) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (window.LootBoxBridge && window.LootBoxBridge.download) {
+                    window.LootBoxBridge.download('https://www.youtube.com/watch?v=' + encodeURIComponent(videoId));
+                  }
                 });
-                window.__lootboxYoutubeObserver.observe(document.documentElement, { childList:true, subtree:true });
-              }
-            })();
+                info.appendChild(button);
+              });
+            }
+            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); }
+            applyLootBoxFeed();
+            if (!window.__lootboxYoutubeObserver) {
+              window.__lootboxYoutubeObserver = new MutationObserver(applyLootBoxFeed);
+              window.__lootboxYoutubeObserver.observe(document.documentElement, { childList:true, subtree:true });
+            }
+          })();
         """.trimIndent()
         view.evaluateJavascript(script, null)
     }
