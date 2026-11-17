@@ -39,6 +39,7 @@ jobs:
           echo "KEYSTORE_FILE=$RUNNER_TEMP/lootbox.keystore" >> "$GITHUB_ENV"
 
       - name: Calculate monotonic app version
+        id: calculate_version
         run: |
           CURRENT_CODE=$(python3 -c 'import json; print(json.load(open("version.json")).get("versionCode", 0))')
           # Preserve compatibility with already-installed builds that used versionCode 1016.
@@ -47,6 +48,8 @@ jobs:
           VERSION_NAME="3.$VERSION_CODE"
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "Building LootBox $VERSION_NAME (versionCode $VERSION_CODE)"
 
       - name: Build APK
@@ -84,8 +87,8 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ env.VERSION_CODE }}
-          name: LootBox ${{ env.VERSION_NAME }}
+          tag_name: build-${{ steps.calculate_version.outputs.version_code }}
+          name: LootBox ${{ steps.calculate_version.outputs.version_name }}
           files: LootBox.apk
           make_latest: true
 
