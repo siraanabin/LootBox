@@ -33,8 +33,8 @@ class HomeFragment : Fragment() {
     }
 
     private class HomeSwipeAdapter(fragment: Fragment) : FragmentStateAdapter(fragment) {
-        override fun getItemCount() = 2
+        override fun getItemCount() = 1
         override fun createFragment(position: Int): Fragment =
-            if (position == 0) HomeContentFragment() else YoutubeFragment()
+            HomeContentFragment()
     }
 }
