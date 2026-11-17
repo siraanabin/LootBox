@@ -630,7 +630,7 @@ class YoutubeFragment : Fragment() {
             if (!window.__lootboxYoutubeUrlTimer) {
               var lastUrl = location.href;
               window.__lootboxYoutubeUrlTimer = setInterval(function() {
-                if (location.href !== lastUrl) { lastUrl = location.href; keepWatchPlayerAtTop(); }
+                if (location.href !== lastUrl) { lastUrl = location.href; keepWatchPlayerAtTop(); debugDomAudit(false); }
               }, 400);
             }
           })();
