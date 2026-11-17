@@ -38,7 +38,7 @@ object Updater {
                 when {
                     info == null -> if (!silent) toast(activity, "Could not check for updates")
                     isNewer(info) -> askUpdate(activity, info)
-                    else -> if (!silent) toast(activity, "You have the latest version")
+                    else -> if (!silent) showLatest(activity, info)
                 }
             }
         }
@@ -82,9 +82,25 @@ object Updater {
     private fun askUpdate(activity: AppCompatActivity, info: Info) {
         AlertDialog.Builder(activity)
             .setTitle("Update available")
-            .setMessage("LootBox ${info.name} is ready. You have ${BuildConfig.VERSION_NAME}.")
+            .setMessage(
+                "Current version: ${BuildConfig.VERSION_NAME}\\n" +
+                "Server version: ${info.name}\\n\\n" +
+                "Status: Update available"
+            )
             .setPositiveButton("Update") { _, _ -> download(activity, info) }
             .setNegativeButton("Later", null)
+            .show()
+    }
+
+    private fun showLatest(activity: AppCompatActivity, info: Info) {
+        AlertDialog.Builder(activity)
+            .setTitle("You're using the latest version")
+            .setMessage(
+                "Current version: ${BuildConfig.VERSION_NAME}\\n" +
+                "Server version: ${info.name}\\n\\n" +
+                "Status: You're up to date"
+            )
+            .setPositiveButton("OK", null)
             .show()
     }
 
