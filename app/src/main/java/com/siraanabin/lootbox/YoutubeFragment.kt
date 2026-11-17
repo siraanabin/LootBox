@@ -307,7 +307,7 @@ class YoutubeFragment : Fragment() {
             typeface = android.graphics.Typeface.MONOSPACE
         }
         auditReportText = auditText
-        auditScroll.addView(auditText, android.widget.ScrollView.LayoutParams(
+        auditScroll.addView(auditText, ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
         auditPanel.addView(auditScroll, LinearLayout.LayoutParams(
