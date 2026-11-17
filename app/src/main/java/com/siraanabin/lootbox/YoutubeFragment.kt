@@ -285,8 +285,12 @@ class YoutubeFragment : Fragment() {
                 /* Watch page only: reset native YouTube top offsets and preserve the player layout. */
                 'ytm-watch, ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container { margin-top:0 !important; padding-top:0 !important; }',
                 'ytm-watch { min-height:0 !important; }',
-                'ytm-watch #player-container-id, ytm-watch #player-container { display:block !important; width:100% !important; max-width:100% !important; aspect-ratio:16/9 !important; }',
-                'ytm-watch #player-container-id video, ytm-watch #player-container video { max-width:100% !important; }',
+                'ytm-watch #player-container-id, ytm-watch #player-container { display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; height:auto !important; min-height:0 !important; max-height:none !important; aspect-ratio:16/9 !important; overflow:hidden !important; }',
+                'ytm-watch ytm-player, ytm-watch .player-container, ytm-watch #player, ytm-watch #movie_player { box-sizing:border-box !important; width:100% !important; max-width:100% !important; height:100% !important; min-height:0 !important; max-height:none !important; }',
+                'ytm-watch #player-container-id video, ytm-watch #player-container video, ytm-watch video { display:block !important; width:100% !important; max-width:100% !important; height:100% !important; object-fit:contain !important; }',
+                /* Collapse empty ad/reserved slots that can leave a large black gap below the video. */
+                'ytm-watch ytm-ad-slot-renderer, ytm-watch ytm-companion-slot, ytm-watch #player-ads, ytm-watch .video-ads, ytm-watch .ytp-ad-module, ytm-watch ytm-promoted-sparkles-web-renderer { display:none !important; height:0 !important; min-height:0 !important; max-height:0 !important; margin:0 !important; padding:0 !important; overflow:hidden !important; }',
+                'ytm-watch #below, ytm-watch #details, ytm-watch ytm-single-column-watch-next-results-renderer { margin-top:0 !important; padding-top:0 !important; }',
                 /* Full-width, square-corner video thumbnails. */
                 'ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer, ytm-browse ytd-rich-item-renderer { display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; margin:0 0 10px 0 !important; padding:0 !important; }',
                 'ytm-thumbnail, ytm-thumbnail a, ytm-thumbnail img, ytd-thumbnail, ytd-thumbnail a, ytd-thumbnail img, .thumbnail, .thumbnail img { border-radius:0 !important; }',
