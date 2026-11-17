@@ -97,7 +97,7 @@ class MainActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent?) {
         if (intent?.action != Intent.ACTION_SEND) return
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
-        val url = Regex("https?://\\\\S+").find(text)?.value ?: return
+        val url = Regex("https?://\\S+").find(text)?.value ?: return
         sharedUrl.value = url
         b.nav.selectedItemId = R.id.nav_home
     }
