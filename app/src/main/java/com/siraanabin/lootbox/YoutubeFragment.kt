@@ -303,7 +303,6 @@ class YoutubeFragment : Fragment() {
             textSize = 11f
             setTextColor(Color.rgb(229, 231, 235))
             setTextIsSelectable(true)
-            setTextIsSelectable(true)
             setPadding(0, 0, dp(4), dp(4))
             typeface = android.graphics.Typeface.MONOSPACE
         }
@@ -515,7 +514,7 @@ class YoutubeFragment : Fragment() {
                   url: report.url,
                   largestGapElement: largest ? {
                     name: largest.tagName + (largest.id ? '#' + largest.id : '') +
-                      (largest.className ? '.' + largest.className.trim().split(/\\s+/).slice(0, 2).join('.') : ''),
+                      (largest.className ? '.' + largest.className.trim().split(/\s+/).slice(0, 2).join('.') : ''),
                     height: largest.offsetHeight,
                     paddingTop: largest.paddingTop,
                     marginTop: largest.marginTop,
@@ -525,7 +524,7 @@ class YoutubeFragment : Fragment() {
                   ancestorChain: chain.slice(0, 7).map(function(x) {
                     return {
                       name: x.tagName + (x.id ? '#' + x.id : '') +
-                        (x.className ? '.' + x.className.trim().split(/\\s+/).slice(0, 2).join('.') : ''),
+                        (x.className ? '.' + x.className.trim().split(/\s+/).slice(0, 2).join('.') : ''),
                       height: x.offsetHeight,
                       paddingTop: x.paddingTop,
                       marginTop: x.marginTop,
@@ -537,19 +536,19 @@ class YoutubeFragment : Fragment() {
                   ytmBrowseCount: browses.length
                 };
                 var formatted = 'PAGE: ' + (isWatchPage ? 'WATCH' : 'HOME') +
-                  '\\nLargest gap element: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.name : 'not found') +
-                  '\\nHeight: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.height + 'px' : '-') +
-                  '\\nPadding top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.paddingTop : '-') +
-                  '\\nMargin top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.marginTop : '-') +
-                  '\\nPrevious siblings: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.precedingSiblingHeight + 'px' : '-') +
-                  '\\nRect top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.rectTop + 'px' : '-') +
-                  '\\n yt m-watch: ' + shortReport.ytmWatchCount + ' | ytm-browse: ' + shortReport.ytmBrowseCount +
-                  '\\nURL: ' + location.href +
-                  '\\n\\nANCESTORS (nearest first):\\n' +
+                  '\nLargest gap element: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.name : 'not found') +
+                  '\nHeight: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.height + 'px' : '-') +
+                  '\nPadding top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.paddingTop : '-') +
+                  '\nMargin top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.marginTop : '-') +
+                  '\nPrevious siblings: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.precedingSiblingHeight + 'px' : '-') +
+                  '\nRect top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.rectTop + 'px' : '-') +
+                  '\n yt m-watch: ' + shortReport.ytmWatchCount + ' | ytm-browse: ' + shortReport.ytmBrowseCount +
+                  '\nURL: ' + location.href +
+                  '\n\nANCESTORS (nearest first):\n' +
                   shortReport.ancestorChain.map(function(x, i) {
                     return (i + 1) + '. ' + x.name + ' | h=' + x.height + 'px | padTop=' + x.paddingTop +
                       ' | marginTop=' + x.marginTop + ' | prev=' + x.precedingSiblingHeight + 'px | top=' + x.rectTop + 'px';
-                  }).join('\\n');
+                  }).join('\n');
                 console.log('LOOTBOX_DOM_AUDIT ' + JSON.stringify(report));
                 if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport(formatted);
               }, 1400);
