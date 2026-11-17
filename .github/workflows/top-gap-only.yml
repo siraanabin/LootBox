@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: lootbox-top-gap-only
@@ -63,3 +63,12 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish installable update APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-1002
+          name: LootBox 3.1002
+          target_commitish: fix/top-gap-only
+          make_latest: true
+          files: app/build/outputs/apk/debug/app-debug.apk
