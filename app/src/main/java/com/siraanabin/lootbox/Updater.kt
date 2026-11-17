@@ -15,12 +15,13 @@ import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Base64
 import kotlin.concurrent.thread
 
 /** In-app updates (from GitHub Releases) and the yt-dlp engine update. */
 object Updater {
 
-    private const val MANIFEST = "https://raw.githubusercontent.com/siraanabin/LootBox/main/version.json"
+    private const val MANIFEST = "https://api.github.com/repos/siraanabin/LootBox/contents/version.json?ref=main"
 
     private class Info(val code: Int, val name: String, val apkUrl: String)
 
@@ -50,17 +51,22 @@ object Updater {
     }
 
     private fun fetch(): Info? {
-        // Bypass GitHub raw/CDN caches so the app always reads the newest release manifest.
-        val manifestUrl = "$MANIFEST?cacheBust=${System.currentTimeMillis()}"
+        // Read the main-branch manifest through GitHub's API to avoid stale raw/CDN responses.
+        val manifestUrl = "$MANIFEST&cacheBust=${System.currentTimeMillis()}"
         val c = URL(manifestUrl).openConnection() as HttpURLConnection
         c.connectTimeout = 15000
         c.readTimeout = 15000
-        c.setRequestProperty("User-Agent", "LootBox")
+        c.setRequestProperty("User-Agent", "LootBox-Android")
+        c.setRequestProperty("Accept", "application/vnd.github+json")
         c.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
         c.setRequestProperty("Pragma", "no-cache")
         try {
             if (c.responseCode != 200) return null
-            val o = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
+            val response = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
+            val encoded = response.optString("content").replace("\\n", "")
+            if (encoded.isBlank()) return null
+            val manifest = String(Base64.getMimeDecoder().decode(encoded), Charsets.UTF_8)
+            val o = JSONObject(manifest)
             val code = o.optInt("versionCode", -1)
             val name = o.optString("versionName")
             val apkUrl = o.optString("apkUrl")
