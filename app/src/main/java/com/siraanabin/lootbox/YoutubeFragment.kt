@@ -157,7 +157,7 @@ class YoutubeFragment : Fragment() {
             setBackgroundColor(Color.rgb(11, 14, 19))
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
-            settings.mediaPlaybackRequiresUserGesture = true
+            settings.mediaPlaybackRequiresUserGesture = false
             settings.javaScriptCanOpenWindowsAutomatically = false
             settings.setSupportMultipleWindows(false)
             settings.allowFileAccess = false
@@ -243,26 +243,26 @@ class YoutubeFragment : Fragment() {
                 /* Remove YouTube's own chrome and bottom tabs; LootBox provides search/navigation. */
                 'ytm-mobile-topbar-renderer, ytm-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-mini-guide-renderer, ytd-masthead, #masthead-container, ytd-mini-guide-renderer, ytm-chip-cloud-renderer, ytm-chip-cloud-chip-renderer { display:none !important; }',
                 'ytm-reel-shelf-renderer, ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts] { display:none !important; }',
-                /* Watch page: keep the player flush to the top of the WebView, directly below LootBox search. */
-                'ytm-watch, ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container, ytm-watch #player { margin-top:0 !important; padding-top:0 !important; }',
+                /* Watch page only: reset native YouTube top offsets and preserve the player layout. */
+                'ytm-watch, ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container { margin-top:0 !important; padding-top:0 !important; }',
                 'ytm-watch { min-height:0 !important; }',
-                'ytm-watch #player-container-id, ytm-watch #player-container { width:100% !important; max-width:100% !important; }',
+                'ytm-watch #player-container-id, ytm-watch #player-container { display:block !important; width:100% !important; max-width:100% !important; aspect-ratio:16/9 !important; }',
+                'ytm-watch #player-container-id video, ytm-watch #player-container video { max-width:100% !important; }',
                 /* Full-width, square-corner video thumbnails. */
-                'ytm-rich-item-renderer, ytm-video-with-context-renderer, ytd-rich-item-renderer { display:block !important; box-sizing:border-box !important; width:100vw !important; max-width:none !important; margin-left:calc((100% - 100vw)/2) !important; margin-right:calc((100% - 100vw)/2) !important; padding-left:0 !important; padding-right:0 !important; }',
+                'ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer, ytm-browse ytd-rich-item-renderer { display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; margin:0 0 10px 0 !important; padding:0 !important; }',
                 'ytm-thumbnail, ytm-thumbnail a, ytm-thumbnail img, ytd-thumbnail, ytd-thumbnail a, ytd-thumbnail img, .thumbnail, .thumbnail img { border-radius:0 !important; }',
-                'ytm-thumbnail, ytm-thumbnail a, ytd-thumbnail, ytd-thumbnail a, .thumbnail { display:block !important; width:100vw !important; max-width:100vw !important; }',
-                'ytm-thumbnail img, ytd-thumbnail img, .thumbnail img { display:block !important; width:100% !important; height:auto !important; aspect-ratio:16/9 !important; object-fit:cover !important; }',
+                'ytm-browse ytm-thumbnail, ytm-browse ytm-thumbnail a, ytm-browse ytd-thumbnail, ytm-browse ytd-thumbnail a, ytm-browse .thumbnail { display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; aspect-ratio:16/9 !important; overflow:hidden !important; margin:0 !important; padding:0 !important; }',
+                'ytm-browse ytm-thumbnail img, ytm-browse ytd-thumbnail img, ytm-browse .thumbnail img { display:block !important; width:100% !important; height:100% !important; aspect-ratio:16/9 !important; object-fit:cover !important; object-position:center !important; }',
                 /* Remove reserved promo, nudge and shelf space above the first feed item. */
-                'ytm-rich-section-renderer, ytm-statement-banner-renderer, ytm-mealbar-promo-renderer, ytm-feed-nudge-renderer, ytm-companion-slot, ytm-promoted-sparkles-web-renderer, ytm-reel-shelf-renderer { display:none !important; }',
-                'ytm-browse, ytm-rich-grid-renderer, ytm-rich-grid-renderer #contents, .rich-grid-renderer-contents { margin-top:0 !important; padding-top:0 !important; }',
-                'ytm-feed-filter-chip-bar-renderer { margin-bottom:0 !important; }',
+                'ytm-browse ytm-rich-section-renderer, ytm-browse ytm-statement-banner-renderer, ytm-browse ytm-mealbar-promo-renderer, ytm-browse ytm-feed-nudge-renderer, ytm-browse ytm-companion-slot, ytm-browse ytm-promoted-sparkles-web-renderer, ytm-browse ytm-reel-shelf-renderer { display:none !important; height:0 !important; min-height:0 !important; margin:0 !important; padding:0 !important; }',
+                'ytm-browse, ytm-browse #contents, ytm-browse ytm-rich-grid-renderer, ytm-browse ytm-rich-grid-renderer #contents, ytm-browse .rich-grid-renderer-contents { margin-top:0 !important; padding-top:0 !important; min-height:0 !important; }',
+                'ytm-browse ytm-feed-filter-chip-bar-renderer { margin-bottom:0 !important; padding-bottom:0 !important; }',
                 /* Feed cards: no extra borders, padding or background bars. */
                 'ytm-rich-item-renderer, ytm-video-with-context-renderer { margin:0 0 10px 0 !important; padding:0 !important; border:0 !important; background:transparent !important; }',
                 /* Thumbnail containers fill the available card width at 16:9. */
                 'ytm-thumbnail, ytm-thumbnail a, .video-thumbnail-container-large, .video-thumbnail-container-compact { display:block !important; width:100% !important; aspect-ratio:16/9 !important; overflow:hidden !important; background:transparent !important; padding:0 !important; margin:0 !important; }',
                 'ytm-thumbnail img, ytm-thumbnail .ytCoreImageHost, ytm-thumbnail yt-core-image img { width:100% !important; height:100% !important; object-fit:cover !important; object-position:center !important; }',
-                /* Inline autoplay previews are videos, not thumbnail images: crop them too. */
-                'ytm-inline-player, ytm-inline-player video, .html5-video-container video, video.html5-main-video { width:100% !important; height:100% !important; object-fit:cover !important; }',
+
                 '.lootbox-download { position:absolute !important; right:10px !important; top:50% !important; transform:translateY(-50%) !important; width:40px !important; height:40px !important; border:0 !important; border-radius:50% !important; background:#263bcb86 !important; color:#2dd4bf !important; display:flex !important; align-items:center !important; justify-content:center !important; z-index:999 !important; padding:0 !important; margin:0 !important; }',
                 '.lootbox-download svg { width:22px !important; height:22px !important; fill:none !important; stroke:#ffffff !important; stroke-width:2.2 !important; }'
               ].join('');
