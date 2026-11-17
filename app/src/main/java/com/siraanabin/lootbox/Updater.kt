@@ -82,11 +82,7 @@ object Updater {
     private fun askUpdate(activity: AppCompatActivity, info: Info) {
         AlertDialog.Builder(activity)
             .setTitle("Update available")
-            .setMessage(
-                "Current version: ${BuildConfig.VERSION_NAME}\\n" +
-                "Server version: ${info.name}\\n\\n" +
-                "Status: Update available"
-            )
+            .setMessage("Current version: ${BuildConfig.VERSION_NAME}\nServer version: ${info.name}\nStatus: Update available")
             .setPositiveButton("Update") { _, _ -> download(activity, info) }
             .setNegativeButton("Later", null)
             .show()
@@ -95,11 +91,7 @@ object Updater {
     private fun showLatest(activity: AppCompatActivity, info: Info) {
         AlertDialog.Builder(activity)
             .setTitle("You're using the latest version")
-            .setMessage(
-                "Current version: ${BuildConfig.VERSION_NAME}\\n" +
-                "Server version: ${info.name}\\n\\n" +
-                "Status: You're up to date"
-            )
+            .setMessage("Current version: ${BuildConfig.VERSION_NAME}\\nServer version: ${info.name}\\nStatus: You're up to date")
             .setPositiveButton("OK", null)
             .show()
     }
