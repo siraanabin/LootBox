@@ -2,14 +2,11 @@ package com.siraanabin.lootbox
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
@@ -40,9 +37,6 @@ class YoutubeFragment : Fragment() {
     private var fullScreenCustomView: View? = null
     private var fullScreenCallback: WebChromeClient.CustomViewCallback? = null
     private var previousSystemUiVisibility: Int = 0
-    private var auditReportText: TextView? = null
-    private var auditReportPanel: View? = null
-    private var latestAuditReport: String = ""
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
@@ -209,11 +203,6 @@ class YoutubeFragment : Fragment() {
                 if (newProgress >= 100) progress?.visibility = View.GONE
             }
 
-            override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
-                Log.d("LootBoxDomAudit", "[JS] ${message.message()} (${message.sourceId()}:${message.lineNumber()})")
-                return true
-            }
-
             override fun onShowCustomView(view: View, callback: CustomViewCallback) {
                 if (fullScreenCustomView != null) {
                     callback.onCustomViewHidden()
@@ -248,112 +237,6 @@ class YoutubeFragment : Fragment() {
             }
         }
         frame.addView(wv)
-
-        // Debug-only DOM audit overlay: stays inside the YouTube screen and can be copied.
-        val auditPanel = LinearLayout(ctx).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(8), dp(12), dp(10))
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(24, 29, 39))
-                cornerRadius = dp(12).toFloat()
-                setStroke(dp(1), Color.rgb(75, 85, 99))
-            }
-            elevation = dp(8).toFloat()
-            visibility = View.GONE
-        }
-        val auditHeader = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        val auditTitle = TextView(ctx).apply {
-            text = "DOM GAP AUDIT"
-            textSize = 12f
-            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-            setTextColor(Color.rgb(147, 197, 253))
-        }
-        auditHeader.addView(auditTitle, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val copyButton = TextView(ctx).apply {
-            text = "Copy"
-            textSize = 13f
-            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(dp(14), dp(7), dp(14), dp(7))
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(37, 99, 235))
-                cornerRadius = dp(8).toFloat()
-            }
-            setOnClickListener {
-                val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText("LootBox DOM audit", latestAuditReport))
-                text = "Copied"
-                postDelayed({ text = "Copy" }, 1200)
-            }
-        }
-        auditHeader.addView(copyButton)
-        val rerunButton = TextView(ctx).apply {
-            text = "Re-run"
-            textSize = 13f
-            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(dp(10), dp(7), dp(10), dp(7))
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(55, 65, 81))
-                cornerRadius = dp(8).toFloat()
-            }
-            setOnClickListener {
-                visibility = View.VISIBLE
-                auditReportPanel?.visibility = View.VISIBLE
-                auditReportText?.text = "Waiting 5 seconds for feed…"
-                webView?.evaluateJavascript("window.__lootboxRunDomAudit && window.__lootboxRunDomAudit(true);", null)
-            }
-        }
-        val hideButton = TextView(ctx).apply {
-            text = "Hide"
-            textSize = 13f
-            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            setPadding(dp(10), dp(7), dp(10), dp(7))
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(75, 85, 99))
-                cornerRadius = dp(8).toFloat()
-            }
-            setOnClickListener { auditReportPanel?.visibility = View.GONE }
-        }
-        auditHeader.addView(rerunButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(6) })
-        auditHeader.addView(hideButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(6) })
-        auditPanel.addView(auditHeader)
-
-        val auditScroll = android.widget.ScrollView(ctx).apply {
-            isFillViewport = false
-            isVerticalScrollBarEnabled = true
-            setPadding(0, dp(6), 0, 0)
-        }
-        val auditText = TextView(ctx).apply {
-            text = "Waiting for Home feed DOM report…"
-            textSize = 11f
-            setTextColor(Color.rgb(229, 231, 235))
-            setTextIsSelectable(true)
-            setPadding(0, 0, dp(4), dp(4))
-            typeface = android.graphics.Typeface.MONOSPACE
-        }
-        auditReportText = auditText
-        auditScroll.addView(auditText, ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ))
-        auditPanel.addView(auditScroll, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(190)
-        ))
-        auditReportPanel = auditPanel
-        frame.addView(auditPanel, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP
-        ).apply {
-            leftMargin = dp(8)
-            rightMargin = dp(8)
-            topMargin = dp(8)
-        })
 
         root.addView(frame, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
@@ -490,189 +373,7 @@ class YoutubeFragment : Fragment() {
                 }
               });
             }
-            function debugDomAudit(force) {
-              var isWatchPage = location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0;
-              var auditKey = location.href + '|' + (isWatchPage ? 'watch' : 'home');
-              if (force) {
-                if (window.__lootboxDomAuditTimer) clearTimeout(window.__lootboxDomAuditTimer);
-                window.__lootboxDomAuditTimer = null;
-                window.__lootboxDomAuditKey = null;
-                window.__lootboxDomAuditAttempt = 0;
-              }
-              if (window.__lootboxDomAuditKey === auditKey && window.__lootboxDomAuditTimer) return;
-              if (window.__lootboxDomAuditKey === auditKey && window.__lootboxDomAuditDone && !force) return;
-              window.__lootboxDomAuditKey = auditKey;
-              window.__lootboxDomAuditDone = false;
-              window.__lootboxDomAuditAttempt = 0;
-              var retryHistory = [];
-
-              function getCounts() {
-                var counts = {};
-                Array.from(document.querySelectorAll('*')).forEach(function(el) {
-                  var tag = (el.tagName || '').toLowerCase();
-                  if (tag.indexOf('ytm-') === 0 || tag.indexOf('yt-') === 0) {
-                    counts[tag] = (counts[tag] || 0) + 1;
-                  }
-                });
-                return counts;
-              }
-
-              function findTarget() {
-                var anchor = document.querySelector('a[href*="/watch"]');
-                if (anchor) return {element:anchor, method:'a[href*="/watch"]'};
-                var image = document.querySelector('img[src*="ytimg"]');
-                if (image) return {element:image, method:'img[src*="ytimg"]'};
-                var card = document.querySelector('ytm-rich-item-renderer, ytm-video-with-context-renderer, ytm-media-item, yt-lockup-view-model, lockup-view-model');
-                if (card) return {element:card, method:'custom video-card fallback'};
-                return null;
-              }
-
-              function nameOf(el) {
-                var cls = typeof el.className === 'string' ? el.className.trim().split(/\s+/)[0] : '';
-                return (el.tagName || '') + (el.id ? '#' + el.id : '') + (cls ? '.' + cls : '');
-              }
-
-              function describeElement(el) {
-                var cs = getComputedStyle(el);
-                var rect = el.getBoundingClientRect();
-                return nameOf(el) + ' | top=' + (Math.round(rect.top*10)/10) +
-                  ' | h=' + (el.offsetHeight || 0) + ' | pt=' + cs.paddingTop +
-                  ' | mt=' + cs.marginTop + ' | ' + cs.display + ' | ' + cs.position;
-              }
-
-              function makeDomOutline(root) {
-                if (!root) return '(ytm-browse and ytm-app not found)';
-                var lines = [];
-                var skipped = {STYLE:1,SCRIPT:1,SVG:1,PATH:1};
-                function walk(el, depth) {
-                  if (!el || el.nodeType !== 1 || skipped[el.tagName]) return;
-                  if (lines.length >= 120) return;
-                  var children = Array.from(el.children || []).filter(function(ch) {
-                    return ch.nodeType === 1 && !skipped[ch.tagName];
-                  });
-                  var h = el.offsetHeight || 0;
-                  if (h >= 20 || children.length > 0) {
-                    lines.push(new Array(depth + 1).join('  ') + describeElement(el));
-                  }
-                  if (depth >= 8) return;
-                  children.forEach(function(ch) {
-                    if (lines.length < 120) walk(ch, depth + 1);
-                  });
-                }
-                walk(root,0);
-                return lines.join('\n') || '(no qualifying elements)';
-              }
-
-              function buildReport(found) {
-                var loader = document.querySelector('#global-loader');
-                var loaderInfo = 'not present';
-                if (loader) {
-                  var lcs = getComputedStyle(loader);
-                  loaderInfo = 'present | display=' + lcs.display + ' | opacity=' + lcs.opacity +
-                    ' | visibility=' + lcs.visibility + ' | offsetHeight=' + loader.offsetHeight;
-                }
-                var counts = getCounts();
-                var countLines = Object.keys(counts).sort().map(function(tag) { return tag + ':' + counts[tag]; });
-                var anchors = Array.from(document.querySelectorAll('a[href*="/watch"]'));
-                var images = Array.from(document.querySelectorAll('img[src*="ytimg"]'));
-                var videos = document.querySelectorAll('video').length;
-                var root = document.querySelector('ytm-browse') || document.querySelector('ytm-app');
-                var outline = makeDomOutline(root);
-                var base = 'PAGE: ' + (isWatchPage ? 'WATCH' : 'HOME') +
-                  '\nURL: ' + location.href +
-                  '\ndocument.readyState: ' + document.readyState +
-                  '\n#global-loader: ' + loaderInfo +
-                  '\nCustom tags (' + countLines.length + ' types):\n' + (countLines.length ? countLines.join('\n') : '(none)') +
-                  '\n\na[href*="/watch"]: ' + anchors.length +
-                  '\nimg[src*="ytimg"]: ' + images.length +
-                  '\nvideo: ' + videos +
-                  '\n\nDOM OUTLINE (root=' + (root ? root.tagName.toLowerCase() : 'not found') + ', max depth 8, max 120 lines):\n' + outline;
-                if (!found) {
-                  return base +
-                    '\n\nVideo target: NOT FOUND after 30 seconds' +
-                    '\nRetry history (timestamp | a[href*="/watch"] count):\n' +
-                    (retryHistory.length ? retryHistory.join('\n') : '(no retries recorded)');
-                }
-
-                var target = found.element;
-                var targetRect = target.getBoundingClientRect();
-                var chain = [];
-                var node = target;
-                while (node && node.nodeType === 1) {
-                  var cs = getComputedStyle(node);
-                  var rect = node.getBoundingClientRect();
-                  chain.push({
-                    tagName:node.tagName,
-                    id:node.id || '',
-                    className:typeof node.className === 'string' ? node.className : '',
-                    top:Math.round(rect.top*10)/10,
-                    height:node.offsetHeight || 0,
-                    paddingTop:cs.paddingTop,
-                    marginTop:cs.marginTop,
-                    position:cs.position
-                  });
-                  if (node === document.body) break;
-                  node = node.parentElement;
-                }
-                var emptyAbove = [];
-                Array.from(document.querySelectorAll('body *')).forEach(function(el) {
-                  if (el === target || target.contains(el) || el.contains(target)) return;
-                  var r = el.getBoundingClientRect();
-                  var h = el.offsetHeight || 0;
-                  if (h < 20 || r.bottom > targetRect.top + 1) return;
-                  var hasContent = !!((el.innerText || el.textContent || '').trim()) ||
-                    !!el.querySelector('img,video,canvas,iframe,button,input');
-                  if (!hasContent) emptyAbove.push({el:el,height:h,top:r.top,bottom:r.bottom});
-                });
-                emptyAbove.sort(function(a,b) { return b.height-a.height; });
-                var gapLines = emptyAbove.slice(0,3).map(function(x,i) {
-                  return (i+1) + '. ' + nameOf(x.el) + ' | top=' + Math.round(x.top*10)/10 +
-                    ' | bottom=' + Math.round(x.bottom*10)/10 + ' | height=' + x.height + 'px';
-                });
-                var chainLines = chain.map(function(x,i) {
-                  var cls = x.className ? '.' + x.className.trim().split(/\s+/)[0] : '';
-                  return (i+1) + '. ' + x.tagName + (x.id ? '#'+x.id : '') + cls +
-                    ' | top=' + x.top + ' | h=' + x.height + ' | pt=' + x.paddingTop +
-                    ' | mt=' + x.marginTop + ' | position=' + x.position;
-                });
-                return base +
-                  '\n\nVideo target: FOUND (' + found.method + ')' +
-                  '\nTagName: ' + target.tagName +
-                  '\nTarget rect.top: ' + (Math.round(targetRect.top*10)/10) + 'px' +
-                  '\n\nTARGET ANCESTORS (target to body):\n' + chainLines.join('\n') +
-                  '\n\nTOP 3 EMPTY GAP CANDIDATES ABOVE TARGET:\n' + (gapLines.length ? gapLines.join('\n') : 'None found');
-              }
-
-              function runAttempt() {
-                var currentKey = location.href + '|' + ((location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0) ? 'watch' : 'home');
-                if (currentKey !== auditKey) return;
-                window.__lootboxDomAuditAttempt = (window.__lootboxDomAuditAttempt || 0) + 1;
-                var anchors = document.querySelectorAll('a[href*="/watch"]').length;
-                var stamp = new Date().toISOString();
-                var found = findTarget();
-                if (!found) {
-                  retryHistory.push(stamp + ' | a[href*="/watch"]=' + anchors);
-                  var waiting = 'PAGE: ' + (isWatchPage ? 'WATCH' : 'HOME') +
-                    '\nVideo target: waiting for feed…' +
-                    '\nRetry: ' + window.__lootboxDomAuditAttempt + '/6 (up to 30 seconds)' +
-                    '\nLatest: ' + stamp + ' | a[href*="/watch"]=' + anchors;
-                  if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport(waiting);
-                  if (window.__lootboxDomAuditAttempt < 6) {
-                    window.__lootboxDomAuditTimer = setTimeout(runAttempt,5000);
-                    return;
-                  }
-                }
-                window.__lootboxDomAuditTimer = null;
-                window.__lootboxDomAuditDone = true;
-                var report = buildReport(found);
-                console.log('LOOTBOX_DOM_AUDIT ' + report);
-                if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport(report);
-              }
-
-              window.__lootboxRunDomAudit = function(forceRun) { debugDomAudit(!!forceRun); };
-              window.__lootboxDomAuditTimer = setTimeout(runAttempt,5000);
-            }
-            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); syncActivePageContainers(); debugDomAudit(false); }
+            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); syncActivePageContainers(); }
             if (!window.__lootboxNavigateFinishBound) {
               window.__lootboxNavigateFinishBound = true;
               document.addEventListener('yt-navigate-finish', function() {
@@ -692,7 +393,7 @@ class YoutubeFragment : Fragment() {
             if (!window.__lootboxYoutubeUrlTimer) {
               var lastUrl = location.href;
               window.__lootboxYoutubeUrlTimer = setInterval(function() {
-                if (location.href !== lastUrl) { lastUrl = location.href; keepWatchPlayerAtTop(); syncActivePageContainers(); debugDomAudit(false); }
+                if (location.href !== lastUrl) { lastUrl = location.href; keepWatchPlayerAtTop(); syncActivePageContainers(); }
               }, 400);
             }
           })();
@@ -706,17 +407,6 @@ class YoutubeFragment : Fragment() {
             activity?.runOnUiThread {
                 topChromeView?.visibility = if (isWatching) View.GONE else View.VISIBLE
             }
-        }
-
-        @JavascriptInterface
-        fun debugReport(message: String) {
-            if (!isAdded) return
-            activity?.runOnUiThread {
-                latestAuditReport = message
-                auditReportText?.text = message
-                auditReportPanel?.visibility = View.VISIBLE
-            }
-            Log.d("LootBoxDomAudit", message)
         }
 
         @JavascriptInterface
@@ -756,9 +446,6 @@ class YoutubeFragment : Fragment() {
         progress = null
         searchField = null
         topChromeView = null
-        auditReportText = null
-        auditReportPanel = null
-        latestAuditReport = ""
         super.onDestroyView()
     }
 
