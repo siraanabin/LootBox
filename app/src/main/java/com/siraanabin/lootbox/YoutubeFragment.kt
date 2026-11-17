@@ -132,8 +132,8 @@ class YoutubeFragment : Fragment() {
                     }
                 }
                 when (category) {
-                    "All" -> wv?.loadUrl("https://m.youtube.com/")
-                    else -> wv?.loadUrl("https://m.youtube.com/results?search_query=" + Uri.encode(category))
+                    "All" -> webView?.loadUrl("https://m.youtube.com/")
+                    else -> webView?.loadUrl("https://m.youtube.com/results?search_query=" + Uri.encode(category))
                 }
             }
             chipViews.add(chip)
