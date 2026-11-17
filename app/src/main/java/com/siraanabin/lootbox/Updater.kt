@@ -38,7 +38,7 @@ object Updater {
                 when {
                     info == null -> if (!silent) toast(activity, "Could not check for updates")
                     isNewer(info) -> askUpdate(activity, info)
-                    else -> if (!silent) toast(activity, "Latest check: installed \${BuildConfig.VERSION_NAME} (\${BuildConfig.VERSION_CODE}), server \${info.name} (\${info.code})")
+                    else -> if (!silent) toast(activity, "Latest check: installed ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}), server ${info.name} (${info.code})")
                 }
             }
         }
