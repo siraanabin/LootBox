@@ -36,6 +36,7 @@ class YoutubeFragment : Fragment() {
     private var previousSystemBarsVisible: Boolean = true
     private var backCallback: OnBackPressedCallback? = null
     private var youtubeFallbackAttempted: Boolean = false
+    private var rendererRecoveryScheduled: Boolean = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
@@ -152,10 +153,30 @@ class YoutubeFragment : Fragment() {
             }
 
             override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
-                // Recover once if Android's WebView renderer crashes instead of leaving a black page.
-                if (isAdded && !youtubeFallbackAttempted) {
-                    youtubeFallbackAttempted = true
-                    view.post { view.loadUrl("https://www.youtube.com/") }
+                // A WebView whose renderer exited is permanently unusable. Replace the Fragment's
+                // WebView instead of trying to reload the crashed instance (which leaves it black).
+                if (isAdded && !rendererRecoveryScheduled) {
+                    rendererRecoveryScheduled = true
+                    val resumeUrl = view.url
+                        ?.takeIf { it.startsWith("https://") && (
+                            it.contains("youtube.com") || it.contains("youtu.be")
+                        ) }
+                        ?: "https://www.youtube.com/"
+                    activity?.runOnUiThread {
+                        if (!isAdded) return@runOnUiThread
+                        val fm = parentFragmentManager
+                        val oldTag = tag ?: "lootbox-tab-${R.id.nav_youtube}"
+                        val wasHidden = isHidden
+                        val replacement = YoutubeFragment().apply {
+                            arguments = Bundle().apply { putString(ARG_INITIAL_URL, resumeUrl) }
+                        }
+                        val transaction = fm.beginTransaction()
+                            .setReorderingAllowed(true)
+                            .remove(this@YoutubeFragment)
+                            .add(R.id.container, replacement, oldTag)
+                        if (wasHidden) transaction.hide(replacement)
+                        transaction.commitAllowingStateLoss()
+                    }
                 }
                 return true
             }
@@ -170,7 +191,9 @@ class YoutubeFragment : Fragment() {
 
             override fun onPageFinished(view: WebView, url: String?) {
                 progress?.visibility = View.GONE
-                injectYoutubeLayout(view)
+                // Diagnostic isolation: first verify that an unmodified YouTube page renders.
+                // Re-enable the custom CSS/JS only after the plain page is confirmed working.
+                if (ENABLE_YOUTUBE_CUSTOMIZATION) injectYoutubeLayout(view)
             }
         }
         wv.webChromeClient = object : WebChromeClient() {
@@ -223,7 +246,9 @@ class YoutubeFragment : Fragment() {
 
         if (state == null) {
             youtubeFallbackAttempted = false
-            wv.loadUrl("https://www.youtube.com/")
+            rendererRecoveryScheduled = false
+            val initialUrl = arguments?.getString(ARG_INITIAL_URL) ?: "https://www.youtube.com/"
+            wv.loadUrl(initialUrl)
         }
         return root
     }
@@ -450,4 +475,10 @@ class YoutubeFragment : Fragment() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    companion object {
+        private const val ARG_INITIAL_URL = "youtube_initial_url"
+        // Keep custom DOM/CSS injection off during the black-screen isolation test.
+        private const val ENABLE_YOUTUBE_CUSTOMIZATION = false
+    }
 }
