@@ -20,7 +20,7 @@ import kotlin.concurrent.thread
 /** In-app updates (from GitHub Releases) and the yt-dlp engine update. */
 object Updater {
 
-    private const val MANIFEST = "https://raw.githubusercontent.com/siraanabin/LootBox/main/version.json"
+    private const val MANIFEST = "https://raw.githubusercontent.com/siraanabin/LootBox/fix/top-gap-only/version.json"
 
     private class Info(val code: Int, val name: String, val apkUrl: String)
 
