@@ -66,31 +66,63 @@ object Updater {
             .show()
     }
 
-    private fun fetch(): Info? {
-        // Read the main-branch manifest through GitHub's API to avoid stale raw/CDN responses.
-        val manifestUrl = "$MANIFEST&cacheBust=${System.currentTimeMillis()}"
-        val c = URL(manifestUrl).openConnection() as HttpURLConnection
-        c.connectTimeout = 15000
-        c.readTimeout = 15000
-        c.setRequestProperty("User-Agent", "LootBox-Android")
-        c.setRequestProperty("Accept", "application/vnd.github+json")
-        c.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
-        c.setRequestProperty("Pragma", "no-cache")
+    private fun fetch(): Info {
+        // Try GitHub's Contents API first, then fall back to raw.githubusercontent.com.
+        // The fallback avoids a total update-check failure when the unauthenticated API is rate-limited.
+        val cacheBust = System.currentTimeMillis()
+        val apiError: Exception
         try {
-            if (c.responseCode != 200) return null
-            val response = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
-            val encoded = response.optString("content").replace("\\n", "")
-            if (encoded.isBlank()) return null
-            val manifest = String(Base64.getMimeDecoder().decode(encoded), Charsets.UTF_8)
-            val o = JSONObject(manifest)
-            val code = o.optInt("versionCode", -1)
-            val name = o.optString("versionName")
-            val apkUrl = o.optString("apkUrl")
-            if (code <= 0 || name.isBlank() || apkUrl.isBlank()) return null
-            return Info(code, name, apkUrl)
-        } finally {
-            c.disconnect()
+            val apiUrl = "$MANIFEST&cacheBust=$cacheBust"
+            val c = URL(apiUrl).openConnection() as HttpURLConnection
+            c.connectTimeout = 12000
+            c.readTimeout = 12000
+            c.setRequestProperty("User-Agent", "LootBox-Android")
+            c.setRequestProperty("Accept", "application/vnd.github+json")
+            c.setRequestProperty("Cache-Control", "no-cache")
+            try {
+                if (c.responseCode == 200) {
+                    val response = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
+                    val encoded = response.optString("content").replace("\\n", "").trim()
+                    if (encoded.isNotBlank()) {
+                        val manifest = String(Base64.getMimeDecoder().decode(encoded), Charsets.UTF_8)
+                        return parseManifest(manifest)
+                    }
+                }
+                apiError = java.io.IOException("GitHub API HTTP ${c.responseCode}")
+            } finally {
+                c.disconnect()
+            }
+        } catch (e: Exception) {
+            apiError = e
         }
+
+        val rawUrl = "https://raw.githubusercontent.com/siraanabin/LootBox/main/version.json?cacheBust=$cacheBust"
+        val raw = URL(rawUrl).openConnection() as HttpURLConnection
+        raw.connectTimeout = 12000
+        raw.readTimeout = 12000
+        raw.setRequestProperty("User-Agent", "LootBox-Android")
+        raw.setRequestProperty("Cache-Control", "no-cache")
+        try {
+            if (raw.responseCode != 200) {
+                throw java.io.IOException("Manifest API failed (${apiError.message}); raw fallback HTTP ${raw.responseCode}")
+            }
+            return parseManifest(raw.inputStream.bufferedReader().use { it.readText() })
+        } catch (e: Exception) {
+            throw java.io.IOException("Update check failed: ${e.message ?: apiError.message}", e)
+        } finally {
+            raw.disconnect()
+        }
+    }
+
+    private fun parseManifest(json: String): Info {
+        val o = JSONObject(json)
+        val code = o.optInt("versionCode", -1)
+        val name = o.optString("versionName")
+        val apkUrl = o.optString("apkUrl")
+        if (code <= 0 || name.isBlank() || apkUrl.isBlank()) {
+            throw java.io.IOException("version.json is missing versionCode, versionName or apkUrl")
+        }
+        return Info(code, name, apkUrl)
     }
 
     private fun askUpdate(activity: AppCompatActivity, info: Info) {
