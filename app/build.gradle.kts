@@ -37,6 +37,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Install the audit build alongside the regular app; do not overwrite or remove user data.
+            applicationIdSuffix = ".audit"
+        }
         release {
             isMinifyEnabled = false
         }
