@@ -1,40 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
-
+    android:layout_height="match_parent"
+    android:background="@color/bg">
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:paddingHorizontal="16dp"
-        android:paddingTop="8dp">
-
+        android:paddingTop="18dp">
         <TextView
             android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:gravity="center_vertical"
-            android:text="Download Manager"
+            android:layout_height="wrap_content"
+            android:text="Downloads"
             android:textColor="@color/text"
-            android:textSize="19sp"
+            android:textSize="25sp"
             android:textStyle="bold" />
-
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Track and manage your files"
+            android:textColor="@color/muted"
+            android:textSize="13sp" />
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="14dp"
+            android:scrollbars="none">
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+                <TextView android:id="@+id/filterAll" style="@style/DownloadFilter" android:text="All" />
+                <TextView android:id="@+id/filterActive" style="@style/DownloadFilter" android:text="Active" />
+                <TextView android:id="@+id/filterDone" style="@style/DownloadFilter" android:text="Completed" />
+                <TextView android:id="@+id/filterFailed" style="@style/DownloadFilter" android:text="Failed" />
+            </LinearLayout>
+        </HorizontalScrollView>
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/list"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:clipToPadding="false"
+            android:paddingTop="8dp"
             android:paddingBottom="16dp" />
     </LinearLayout>
-
     <TextView
         android:id="@+id/emptyText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:text="No downloads yet"
+        android:text="Your downloads will appear here"
         android:textColor="@color/muted"
         android:textSize="15sp" />
 </FrameLayout>
