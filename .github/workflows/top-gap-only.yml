@@ -1,11 +1,12 @@
-name: Build Top Gap Only APK
+name: Top Gap Only APK
 
 on:
   push:
-    branches: [fix/top-gap-only]
+    branches:
+      - fix/top-gap-only
     paths:
-      - 'app/src/main/java/com/siraanabin/lootbox/YoutubeFragment.kt'
-      - '.github/workflows/top-gap-only.yml'
+      - .github/workflows/top-gap-only.yml
+      - app/src/main/java/com/siraanabin/lootbox/YoutubeFragment.kt
   workflow_dispatch:
 
 permissions:
@@ -16,19 +17,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-debug-apk:
+    if: github.ref == 'refs/heads/fix/top-gap-only'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout top-gap-only branch
+        uses: actions/checkout@v4
         with:
           ref: fix/top-gap-only
 
-      - uses: actions/setup-java@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
@@ -43,7 +48,7 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/lootbox.keystore"
           echo "KEYSTORE_FILE=$RUNNER_TEMP/lootbox.keystore" >> "$GITHUB_ENV"
 
-      - name: Build one debug APK
+      - name: Build the single debug APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
