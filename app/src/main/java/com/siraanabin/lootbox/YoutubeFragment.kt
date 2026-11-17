@@ -510,7 +510,7 @@ class YoutubeFragment : Fragment() {
                 if (location.href + '|' + ((location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0) ? 'watch' : 'home') !== auditKey) return;
                 window.__lootboxDomAuditAttempt = (window.__lootboxDomAuditAttempt || 0) + 1;
                 var found = findThumbnail();
-                if (!found && window.__lootboxDomAuditAttempt < 4) {
+                if (!found && window.__lootboxDomAuditAttempt < 3) {
                   var waiting = 'PAGE: ' + (isWatchPage ? 'WATCH' : 'HOME') +
                     '\nVideo card: NOT FOUND yet' +
                     '\nRetry: ' + window.__lootboxDomAuditAttempt + '/3 (next check in 5 seconds)' +
