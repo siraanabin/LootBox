@@ -112,6 +112,9 @@ class YoutubeFragment : Fragment() {
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.safeBrowsingEnabled = true
+            // YouTube needs first- and third-party cookies for consent and page sessions.
+            android.webkit.CookieManager.getInstance().setAcceptCookie(true)
+            android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             addJavascriptInterface(DownloadBridge(), "LootBoxBridge")
         }
         webView = wv
@@ -124,6 +127,8 @@ class YoutubeFragment : Fragment() {
                 val insideYoutube = host == "youtube.com" || host.endsWith(".youtube.com") ||
                     host == "youtu.be" || host.endsWith(".googlevideo.com") ||
                     host.endsWith(".ytimg.com") || host.endsWith(".google.com") ||
+                    host.endsWith(".googleapis.com") || host.endsWith(".gstatic.com") ||
+                    host.endsWith(".ggpht.com") || host.endsWith(".googleusercontent.com") ||
                     host.endsWith(".youtube-nocookie.com")
                 if (!insideYoutube && (request.url.scheme == "https" || request.url.scheme == "http")) {
                     runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(request.url.toString()))) }
