@@ -76,10 +76,15 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: LootBox 3.${{ github.run_number }}
           files: LootBox.apk
-          make_latest: true
+          make_latest: false
 
       - name: Publish update manifest without GitHub API
         run: |
+          CURRENT_CODE=$(python3 -c 'import json; print(json.load(open("version.json")).get("versionCode", 0))')
+          if [ "${{ github.run_number }}" -le "$CURRENT_CODE" ]; then
+            echo "Skipping stale manifest update: build ${{ github.run_number }} <= current $CURRENT_CODE"
+            exit 0
+          fi
           cat > version.json <<'JSON'
           {
             "versionCode": ${{ github.run_number }},
