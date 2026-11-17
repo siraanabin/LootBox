@@ -30,6 +30,7 @@ class YoutubeFragment : Fragment() {
     private var webView: WebView? = null
     private var progress: ProgressBar? = null
     private var searchField: EditText? = null
+    private var searchBarView: View? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
@@ -52,6 +53,7 @@ class YoutubeFragment : Fragment() {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
             ).apply { setMargins(dp(12), dp(8), dp(12), dp(8)) }
         }
+        searchBarView = searchBar
         val searchIcon = ImageButton(ctx).apply {
             setImageResource(android.R.drawable.ic_menu_search)
             setColorFilter(Color.WHITE)
@@ -219,7 +221,11 @@ class YoutubeFragment : Fragment() {
               });
             }
             function keepWatchPlayerAtTop() {
-              if (/\\/watch(?:\\?|$)/.test(location.pathname + location.search)) {
+              var isWatchPage = location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0;
+              if (window.LootBoxBridge && window.LootBoxBridge.setWatchMode) {
+                window.LootBoxBridge.setWatchMode(isWatchPage);
+              }
+              if (isWatchPage) {
                 window.scrollTo(0, 0);
                 var watch = document.querySelector('ytm-watch');
                 if (watch) {
@@ -246,6 +252,13 @@ class YoutubeFragment : Fragment() {
     }
 
     private inner class DownloadBridge {
+        @JavascriptInterface
+        fun setWatchMode(isWatching: Boolean) {
+            activity?.runOnUiThread {
+                searchBarView?.visibility = if (isWatching) View.GONE else View.VISIBLE
+            }
+        }
+
         @JavascriptInterface
         fun download(url: String) {
             val appContext = context?.applicationContext ?: return
@@ -280,6 +293,7 @@ class YoutubeFragment : Fragment() {
         webView = null
         progress = null
         searchField = null
+        searchBarView = null
         super.onDestroyView()
     }
 
