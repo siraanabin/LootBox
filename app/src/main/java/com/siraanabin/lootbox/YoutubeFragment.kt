@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
@@ -203,6 +204,11 @@ class YoutubeFragment : Fragment() {
                 if (newProgress >= 100) progress?.visibility = View.GONE
             }
 
+            override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                Log.d("LootBoxDomAudit", "[JS] ${message.message()} (${message.sourceId()}:${message.lineNumber()})")
+                return true
+            }
+
             override fun onShowCustomView(view: View, callback: CustomViewCallback) {
                 if (fullScreenCustomView != null) {
                     callback.onCustomViewHidden()
@@ -352,7 +358,80 @@ class YoutubeFragment : Fragment() {
                 }
               }
             }
-            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); }
+            function debugDomAudit() {
+              var isWatchPage = location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0;
+              var auditKey = location.href + '|' + (isWatchPage ? 'watch' : 'home');
+              if (window.__lootboxDomAuditLast === auditKey) return;
+              window.__lootboxDomAuditLast = auditKey;
+              setTimeout(function() {
+                if (location.href + '|' + ((location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0) ? 'watch' : 'home') !== auditKey) return;
+                var card = document.querySelector('ytm-rich-item-renderer, ytm-video-with-context-renderer');
+                if (isWatchPage && card && !card.closest('ytm-browse')) {
+                  card = document.querySelector('ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer') || card;
+                }
+                if (!card && isWatchPage) card = document.querySelector('ytm-watch') || document.querySelector('ytm-browse');
+                if (!card) {
+                  console.log('LOOTBOX_DOM_AUDIT no video card found; page=' + (isWatchPage ? 'watch' : 'home'));
+                  if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport('DOM audit: video card not found');
+                  return;
+                }
+                var chain = [];
+                var largest = null;
+                var node = card;
+                while (node && node.nodeType === 1) {
+                  var cs = getComputedStyle(node);
+                  var siblings = [];
+                  var previousHeight = 0;
+                  var sibling = node.previousElementSibling;
+                  while (sibling) {
+                    var h = sibling.offsetHeight || 0;
+                    if (h > 20) {
+                      previousHeight += h;
+                      siblings.push({tagName:sibling.tagName, id:sibling.id || '', className:typeof sibling.className === 'string' ? sibling.className : '', offsetHeight:h});
+                    }
+                    sibling = sibling.previousElementSibling;
+                  }
+                  var padding = parseFloat(cs.paddingTop) || 0;
+                  var margin = parseFloat(cs.marginTop) || 0;
+                  var ownGap = padding + margin;
+                  var score = previousHeight + ownGap;
+                  var item = {
+                    tagName:node.tagName, id:node.id || '',
+                    className:typeof node.className === 'string' ? node.className : '',
+                    rectTop:Math.round(node.getBoundingClientRect().top * 10) / 10,
+                    offsetHeight:node.offsetHeight,
+                    paddingTop:cs.paddingTop, marginTop:cs.marginTop,
+                    position:cs.position, precedingSiblingHeightTotal:previousHeight,
+                    precedingSiblingsOver20px:siblings, ownPaddingMargin:ownGap,
+                    gapScore:score
+                  };
+                  chain.push(item);
+                  if (!largest || score > largest.gapScore) largest = item;
+                  if (node === document.body) break;
+                  node = node.parentElement;
+                }
+                var visibility = function(el) {
+                  var s = getComputedStyle(el);
+                  return {display:s.display, visibility:s.visibility, hidden:!!el.hidden};
+                };
+                var watches = Array.from(document.querySelectorAll('ytm-watch')).map(visibility);
+                var browses = Array.from(document.querySelectorAll('ytm-browse')).map(visibility);
+                var report = {
+                  page:isWatchPage ? 'watch' : 'home',
+                  url:location.href,
+                  startElement:{tagName:card.tagName, id:card.id || '', className:typeof card.className === 'string' ? card.className : ''},
+                  ancestorChain:chain,
+                  largestGapElement:largest,
+                  ytmWatchCount:watches.length, ytmWatchVisibility:watches,
+                  ytmBrowseCount:browses.length, ytmBrowseVisibility:browses
+                };
+                console.log('LOOTBOX_DOM_AUDIT ' + JSON.stringify(report));
+                var target = largest ? largest.tagName + (largest.id ? '#' + largest.id : '') + ' ~' + Math.round(largest.gapScore) + 'px' : 'not determined';
+                var toastText = (isWatchPage ? 'Watch' : 'Home') + ' DOM audit: ' + target;
+                if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport(toastText);
+              }, 1400);
+            }
+            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); debugDomAudit(); }
             applyLootBoxFeed();
             if (!window.__lootboxYoutubeObserver) {
               window.__lootboxYoutubeObserver = new MutationObserver(applyLootBoxFeed);
@@ -374,6 +453,15 @@ class YoutubeFragment : Fragment() {
         fun setWatchMode(isWatching: Boolean) {
             activity?.runOnUiThread {
                 topChromeView?.visibility = if (isWatching) View.GONE else View.VISIBLE
+            }
+        }
+
+        @JavascriptInterface
+        fun debugReport(message: String) {
+            val appContext = context?.applicationContext ?: return
+            Log.d("LootBoxDomAudit", "[TOAST] $message")
+            activity?.runOnUiThread {
+                Toast.makeText(appContext, message.take(110), Toast.LENGTH_LONG).show()
             }
         }
 
