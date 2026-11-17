@@ -38,12 +38,23 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/lootbox.keystore"
           echo "KEYSTORE_FILE=$RUNNER_TEMP/lootbox.keystore" >> "$GITHUB_ENV"
 
+      - name: Calculate monotonic app version
+        run: |
+          CURRENT_CODE=$(python3 -c 'import json; print(json.load(open("version.json")).get("versionCode", 0))')
+          # Preserve compatibility with already-installed builds that used versionCode 1016.
+          if [ "$CURRENT_CODE" -lt 1016 ]; then CURRENT_CODE=1016; fi
+          VERSION_CODE=$((CURRENT_CODE + 1))
+          VERSION_NAME="3.$VERSION_CODE"
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "Building LootBox $VERSION_NAME (versionCode $VERSION_CODE)"
+
       - name: Build APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: gradle assembleDebug --stacktrace -PverCode=${{ github.run_number }}
+        run: gradle assembleDebug --stacktrace -PverCode=$VERSION_CODE
 
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk LootBox.apk
@@ -73,30 +84,24 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: LootBox 3.${{ github.run_number }}
+          tag_name: build-${{ env.VERSION_CODE }}
+          name: LootBox ${{ env.VERSION_NAME }}
           files: LootBox.apk
-          make_latest: false
+          make_latest: true
 
-      - name: Publish update manifest without GitHub API
+      - name: Publish update manifest
         run: |
-          CURRENT_CODE=$(python3 -c 'import json; print(json.load(open("version.json")).get("versionCode", 0))')
-          if [ "$CURRENT_CODE" -lt 1003 ]; then CURRENT_CODE=1003; fi
-          if [ "${{ github.run_number }}" -le "$CURRENT_CODE" ]; then
-            echo "Skipping stale manifest update: build ${{ github.run_number }} <= current $CURRENT_CODE"
-            exit 0
-          fi
-          cat > version.json <<'JSON'
+          cat > version.json <<JSON
           {
-            "versionCode": ${{ github.run_number }},
-            "versionName": "3.${{ github.run_number }}",
-            "apkUrl": "https://github.com/siraanabin/LootBox/releases/latest/download/LootBox.apk"
+            "versionCode": $VERSION_CODE,
+            "versionName": "$VERSION_NAME",
+            "apkUrl": "https://github.com/siraanabin/LootBox/releases/download/build-$VERSION_CODE/LootBox.apk"
           }
           JSON
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add version.json
           if ! git diff --cached --quiet; then
-            git commit -m "Update LootBox release manifest [skip ci]"
+            git commit -m "Publish LootBox $VERSION_NAME update manifest [skip ci]"
             git push origin HEAD:main
           fi
