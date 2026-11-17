@@ -43,14 +43,14 @@ object Updater {
                         showVersionStatus(
                             activity,
                             "Latest version",
-                            "Installed version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\\nServer version: ${info.name} (${info.code})\\nStatus: Your app is up to date."
+                            "Installed version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\nServer version: ${info.name} (${info.code})\nStatus: Your app is up to date."
                         )
                     }
                     else -> if (!silent) {
                         showVersionStatus(
                             activity,
                             "Version check",
-                            "Installed version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\\nServer version: ${info.name} (${info.code})\\nStatus: Update server is behind the installed app."
+                            "Installed version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\nServer version: ${info.name} (${info.code})\nStatus: Update server is behind the installed app."
                         )
                     }
                 }
