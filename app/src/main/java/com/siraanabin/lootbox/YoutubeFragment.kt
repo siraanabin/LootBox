@@ -1,9 +1,11 @@
 package com.siraanabin.lootbox
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Outline
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
@@ -11,7 +13,10 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -22,23 +27,42 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
-import android.widget.Toast
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
+/**
+ * YouTube tab.
+ *  - Feed WebView = main page (pull down to refresh -> new videos).
+ *  - Tapping a video opens it in a second "watch" WebView that sits on top (player pinned at the top).
+ *  - Back while watching = minimize to a small player; the feed underneath is untouched.
+ *  - Tapping a suggestion while watching stays inside the watch WebView; Back still minimizes and
+ *    returns to the original main page.
+ */
 class YoutubeFragment : Fragment() {
-    private var webView: WebView? = null
+    private enum class Mode { HOME, EXPANDED, MINI }
+
+    private var feedWeb: WebView? = null
+    private var watchWeb: WebView? = null
+    private var swipe: SwipeRefreshLayout? = null
+    private var frame: FrameLayout? = null
+    private var holder: FrameLayout? = null
+    private var miniOverlay: FrameLayout? = null
     private var progress: ProgressBar? = null
     private var searchField: EditText? = null
+    private var headerRow: View? = null
+    private var searchRow: View? = null
     private var topChromeView: View? = null
     private var fullScreenCustomView: View? = null
     private var fullScreenCallback: WebChromeClient.CustomViewCallback? = null
     private var previousSystemUiVisibility: Int = 0
-    private var youtubeFallbackAttempted: Boolean = false
+    private var feedFallbackAttempted: Boolean = false
+    private var mode: Mode = Mode.HOME
+    private var currentVideoId: String? = null
+    private var miniRadiusPx: Float = 0f
 
-    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
         val ctx = requireContext()
         val root = LinearLayout(ctx).apply {
@@ -84,16 +108,75 @@ class YoutubeFragment : Fragment() {
             setColorFilter(Color.WHITE)
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
             contentDescription = "Search YouTube"
-            setOnClickListener { showSearchDialog() }
+            setOnClickListener { openSearch() }
         }
         header.addView(searchButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+        headerRow = header
         topChrome.addView(header)
 
-        // The native 48dp category strip was removed; keep only the header.
+        // Inline search bar (replaces the old popup dialog).
+        val sRow = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), 0, dp(12), 0)
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56))
+        }
+        val backBtn = TextView(ctx).apply {
+            text = "←"
+            textSize = 24f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            contentDescription = "Close search"
+            setOnClickListener { closeSearch() }
+        }
+        sRow.addView(backBtn, LinearLayout.LayoutParams(dp(48), dp(48)))
+        val field = EditText(ctx).apply {
+            hint = "Search YouTube"
+            setHintTextColor(Color.rgb(170, 170, 170))
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            setSingleLine(true)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            setPadding(dp(16), 0, dp(16), 0)
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(39, 39, 39))
+                cornerRadius = dp(20).toFloat()
+            }
+            setOnEditorActionListener { v, actionId, event ->
+                if (actionId == EditorInfo.IME_ACTION_SEARCH || event?.keyCode == KeyEvent.KEYCODE_ENTER) {
+                    runSearch(v.text?.toString().orEmpty())
+                    true
+                } else false
+            }
+        }
+        searchField = field
+        sRow.addView(field, LinearLayout.LayoutParams(0, dp(40), 1f))
+        searchRow = sRow
+        topChrome.addView(sRow)
 
         root.addView(topChrome)
 
-        val frame = FrameLayout(ctx)
+        val fr = FrameLayout(ctx)
+        frame = fr
+
+        // Main page (feed) with pull-to-refresh.
+        val feed = newWebView("feed")
+        feedWeb = feed
+        val sw = SwipeRefreshLayout(ctx).apply {
+            setProgressBackgroundColorSchemeColor(Color.rgb(39, 39, 39))
+            setColorSchemeColors(Color.WHITE)
+            setOnChildScrollUpCallback { _, _ -> (feedWeb?.scrollY ?: 0) > 0 }
+            setOnRefreshListener {
+                refreshFeed()
+                postDelayed({ isRefreshing = false }, 8000)
+            }
+        }
+        swipe = sw
+        sw.addView(feed, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        fr.addView(sw, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
         val p = ProgressBar(ctx, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             progress = 0
@@ -101,14 +184,58 @@ class YoutubeFragment : Fragment() {
             indeterminateTintList = android.content.res.ColorStateList.valueOf(Color.rgb(37, 99, 235))
         }
         progress = p
-        frame.addView(p, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(2), Gravity.TOP))
+        fr.addView(p, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(2), Gravity.TOP))
 
-        val wv = WebView(ctx).apply {
+        // Watch layer: full screen when expanded, small floating player when minimized.
+        val h = FrameLayout(ctx).apply {
+            setBackgroundColor(Color.BLACK)
+            visibility = View.GONE
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setRoundRect(0, 0, view.width, view.height, miniRadiusPx)
+                }
+            }
+            clipToOutline = true
+        }
+        val overlay = FrameLayout(ctx).apply {
+            visibility = View.GONE
+            setOnClickListener { expand() }
+        }
+        val closeBtn = TextView(ctx).apply {
+            text = "✕"
+            textSize = 13f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            contentDescription = "Close video"
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.argb(170, 0, 0, 0))
+            }
+            setOnClickListener { closeVideo() }
+        }
+        overlay.addView(closeBtn, FrameLayout.LayoutParams(dp(26), dp(26), Gravity.TOP or Gravity.END).apply {
+            setMargins(0, dp(4), dp(4), 0)
+        })
+        h.addView(overlay, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        miniOverlay = overlay
+        holder = h
+        fr.addView(h, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        root.addView(fr, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        if (state == null) {
+            feedFallbackAttempted = false
+            feed.loadUrl("https://www.youtube.com/")
+        }
+        return root
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun newWebView(role: String): WebView {
+        return WebView(requireContext()).apply {
             setBackgroundColor(Color.rgb(11, 14, 19))
-            // Keep WebView on the system-managed rendering path; forcing a hardware layer
-            // can leave WebView content black on some Android GPU/driver combinations.
+            // Keep WebView on the system-managed rendering path and the default User-Agent.
             settings.javaScriptEnabled = true
-            // Keep Android WebView's default User-Agent; modifying it can break YouTube rendering.
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             settings.javaScriptCanOpenWindowsAutomatically = false
@@ -116,144 +243,239 @@ class YoutubeFragment : Fragment() {
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.safeBrowsingEnabled = true
-            // YouTube needs first- and third-party cookies for consent and page sessions.
-            android.webkit.CookieManager.getInstance().setAcceptCookie(true)
-            android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+            CookieManager.getInstance().setAcceptCookie(true)
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             addJavascriptInterface(DownloadBridge(), "LootBoxBridge")
+            webViewClient = makeClient(role)
+            webChromeClient = makeChrome(role)
         }
-        webView = wv
-        wv.layoutParams = FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-        )
-        wv.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                val host = request.url.host.orEmpty().lowercase()
-                val insideYoutube = host == "youtube.com" || host.endsWith(".youtube.com") ||
-                    host == "youtu.be" || host.endsWith(".googlevideo.com") ||
-                    host.endsWith(".ytimg.com") || host.endsWith(".google.com") ||
-                    host.endsWith(".googleapis.com") || host.endsWith(".gstatic.com") ||
-                    host.endsWith(".ggpht.com") || host.endsWith(".googleusercontent.com") ||
-                    host.endsWith(".youtube-nocookie.com")
-                if (!insideYoutube && (request.url.scheme == "https" || request.url.scheme == "http")) {
-                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(request.url.toString()))) }
-                    return true
-                }
-                return !insideYoutube
-            }
+    }
 
-            override fun onReceivedError(
-                view: WebView,
-                request: WebResourceRequest,
-                error: android.webkit.WebResourceError
-            ) {
-                super.onReceivedError(view, request, error)
-                if (request.isForMainFrame && !youtubeFallbackAttempted && isAdded) {
-                    youtubeFallbackAttempted = true
-                    view.post { view.loadUrl("https://www.youtube.com/") }
-                }
-            }
+    private fun videoIdOf(url: String?): String? {
+        if (url == null) return null
+        val uri = Uri.parse(url)
+        if (uri.path != "/watch") return null
+        return uri.getQueryParameter("v")?.takeIf { VIDEO_ID.matches(it) }
+    }
 
-            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
-                // Recover once if Android's WebView renderer crashes instead of leaving a black page.
-                if (isAdded && !youtubeFallbackAttempted) {
-                    youtubeFallbackAttempted = true
-                    view.post { view.loadUrl("https://www.youtube.com/") }
-                }
+    private fun makeClient(role: String) = object : WebViewClient() {
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            val host = request.url.host.orEmpty().lowercase()
+            val insideYoutube = host == "youtube.com" || host.endsWith(".youtube.com") ||
+                host == "youtu.be" || host.endsWith(".googlevideo.com") ||
+                host.endsWith(".ytimg.com") || host.endsWith(".google.com") ||
+                host.endsWith(".googleapis.com") || host.endsWith(".gstatic.com") ||
+                host.endsWith(".ggpht.com") || host.endsWith(".googleusercontent.com") ||
+                host.endsWith(".youtube-nocookie.com")
+            if (!insideYoutube && (request.url.scheme == "https" || request.url.scheme == "http")) {
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(request.url.toString()))) }
                 return true
             }
+            return !insideYoutube
+        }
 
-            override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
-                if (url?.startsWith("https://m.youtube.com") == true || url?.startsWith("https://www.youtube.com") == true) {
-                    progress?.visibility = View.VISIBLE
-                }
+        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
+            super.onReceivedError(view, request, error)
+            if (role == "feed" && request.isForMainFrame && !feedFallbackAttempted && isAdded) {
+                feedFallbackAttempted = true
+                view.post { view.loadUrl("https://www.youtube.com/") }
+            }
+        }
+
+        override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+            if (isAdded && role == "feed" && !feedFallbackAttempted) {
+                feedFallbackAttempted = true
+                view.post { view.loadUrl("https://www.youtube.com/") }
+            }
+            return true
+        }
+
+        override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+            if (role == "feed") {
                 progress?.visibility = View.VISIBLE
                 progress?.progress = 8
             }
+        }
 
-            override fun onPageFinished(view: WebView, url: String?) {
+        override fun onPageFinished(view: WebView, url: String?) {
+            if (role == "feed") {
                 progress?.visibility = View.GONE
-                injectYoutubeLayout(view)
+                swipe?.isRefreshing = false
             }
+            injectYoutubeLayout(view, role)
         }
-        wv.webChromeClient = object : WebChromeClient() {
-            override fun onProgressChanged(view: WebView, newProgress: Int) {
-                progress?.progress = newProgress
-                if (newProgress >= 100) progress?.visibility = View.GONE
-            }
 
-            override fun onShowCustomView(view: View, callback: CustomViewCallback) {
-                if (fullScreenCustomView != null) {
-                    callback.onCustomViewHidden()
-                    return
-                }
-                val decor = requireActivity().window.decorView as? ViewGroup ?: return
-                fullScreenCustomView = view
-                fullScreenCallback = callback
-                previousSystemUiVisibility = decor.systemUiVisibility
-                topChromeView?.visibility = View.GONE
-                decor.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                )
-                decor.addView(view, ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                ))
-            }
-
-            override fun onHideCustomView() {
-                val decor = activity?.window?.decorView as? ViewGroup
-                fullScreenCustomView?.let { decor?.removeView(it) }
-                fullScreenCustomView = null
-                fullScreenCallback?.onCustomViewHidden()
-                fullScreenCallback = null
-                decor?.systemUiVisibility = previousSystemUiVisibility
-                if (locationIsWatchPage()) topChromeView?.visibility = View.GONE
-                else topChromeView?.visibility = View.VISIBLE
-            }
-        }
-        frame.addView(wv)
-        root.addView(frame, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
-        ))
-
-        if (state == null) {
-            youtubeFallbackAttempted = false
-            wv.loadUrl("https://www.youtube.com/")
-        }
-        return root
-    }
-
-    private fun showSearchDialog() {
-        val input = EditText(requireContext()).apply {
-            hint = "Search YouTube"
-            setSingleLine(true)
-            inputType = android.text.InputType.TYPE_CLASS_TEXT
-            imeOptions = EditorInfo.IME_ACTION_SEARCH
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle("Search YouTube")
-            .setView(input)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Search") { _, _ ->
-                val query = input.text?.toString()?.trim().orEmpty()
-                if (query.isNotEmpty()) {
-                    webView?.loadUrl("https://m.youtube.com/results?search_query=" + Uri.encode(query))
+        override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+            val id = videoIdOf(url)
+            if (role == "watch") {
+                if (id != null) currentVideoId = id
+            } else if (id != null) {
+                // Safety net: if a video link slipped past the click hook, open it in the watch layer
+                // and put the feed back where it was.
+                view.post {
+                    openVideo(id)
+                    if (view.canGoBack()) view.goBack()
                 }
             }
-            .show()
-        searchField = input
+        }
     }
 
-    private fun locationIsWatchPage(): Boolean = webView?.url?.let { it.contains("/watch") } == true
+    private fun makeChrome(role: String) = object : WebChromeClient() {
+        override fun onProgressChanged(view: WebView, newProgress: Int) {
+            if (role != "feed") return
+            progress?.progress = newProgress
+            if (newProgress >= 100) progress?.visibility = View.GONE
+        }
 
-    private fun wvSafeLoad(url: String) {
-        webView?.loadUrl(url)
+        override fun onShowCustomView(view: View, callback: CustomViewCallback) {
+            if (fullScreenCustomView != null) {
+                callback.onCustomViewHidden()
+                return
+            }
+            val decor = requireActivity().window.decorView as? ViewGroup ?: return
+            fullScreenCustomView = view
+            fullScreenCallback = callback
+            previousSystemUiVisibility = decor.systemUiVisibility
+            topChromeView?.visibility = View.GONE
+            decor.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
+            decor.addView(view, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ))
+        }
+
+        override fun onHideCustomView() {
+            exitFullScreen()
+        }
     }
 
-    private fun injectYoutubeLayout(view: WebView) {
+    private fun exitFullScreen() {
+        val decor = activity?.window?.decorView as? ViewGroup
+        fullScreenCustomView?.let { decor?.removeView(it) }
+        fullScreenCustomView = null
+        fullScreenCallback?.onCustomViewHidden()
+        fullScreenCallback = null
+        decor?.systemUiVisibility = previousSystemUiVisibility
+        topChromeView?.visibility = if (mode == Mode.EXPANDED) View.GONE else View.VISIBLE
+    }
+
+    // ---- video layer: open / expand / minimize / close ----
+
+    private fun openVideo(id: String) {
+        if (!isAdded || !VIDEO_ID.matches(id)) return
+        val h = holder ?: return
+        closeSearch()
+        var w = watchWeb
+        if (w == null) {
+            w = newWebView("watch")
+            watchWeb = w
+            h.addView(w, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        if (currentVideoId != id) {
+            currentVideoId = id
+            w.loadUrl("https://m.youtube.com/watch?v=" + id)
+        }
+        expand()
+    }
+
+    private fun expand() {
+        val h = holder ?: return
+        val w = watchWeb ?: return
+        mode = Mode.EXPANDED
+        topChromeView?.visibility = View.GONE
+        h.visibility = View.VISIBLE
+        h.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        w.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        w.scaleX = 1f
+        w.scaleY = 1f
+        miniOverlay?.visibility = View.GONE
+        h.elevation = 0f
+        miniRadiusPx = 0f
+        h.invalidateOutline()
+    }
+
+    private fun minimize() {
+        val fr = frame ?: return
+        val h = holder ?: return
+        val w = watchWeb ?: return
+        val fw = fr.width
+        if (fw <= 0) return
+        mode = Mode.MINI
+        topChromeView?.visibility = View.VISIBLE
+        val miniW = minOf(dp(210), (fw * 0.56f).toInt())
+        val miniH = miniW * 9 / 16
+        val scale = miniW.toFloat() / fw
+        h.layoutParams = FrameLayout.LayoutParams(miniW, miniH, Gravity.BOTTOM or Gravity.END).apply {
+            setMargins(0, 0, dp(12), dp(12))
+        }
+        // The page keeps its full-screen size (so the pinned 16:9 player stays intact) and is scaled down;
+        // the holder clips everything except the player.
+        w.layoutParams = FrameLayout.LayoutParams(fw, maxOf(fr.height, dp(300)))
+        w.pivotX = 0f
+        w.pivotY = 0f
+        w.scaleX = scale
+        w.scaleY = scale
+        miniOverlay?.visibility = View.VISIBLE
+        h.elevation = dp(8).toFloat()
+        miniRadiusPx = dp(10).toFloat()
+        h.invalidateOutline()
+    }
+
+    private fun closeVideo() {
+        watchWeb?.loadUrl("about:blank")
+        currentVideoId = null
+        holder?.visibility = View.GONE
+        mode = Mode.HOME
+        topChromeView?.visibility = View.VISIBLE
+    }
+
+    private fun refreshFeed() {
+        val f = feedWeb ?: return
+        val path = f.url?.let { Uri.parse(it).path }
+        if (path == null || path == "/" || path.isEmpty()) {
+            f.loadUrl("https://m.youtube.com/")
+        } else {
+            f.reload()
+        }
+    }
+
+    // ---- inline search bar ----
+
+    private fun openSearch() {
+        headerRow?.visibility = View.GONE
+        searchRow?.visibility = View.VISIBLE
+        searchField?.let {
+            it.requestFocus()
+            val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            it.post { imm.showSoftInput(it, InputMethodManager.SHOW_IMPLICIT) }
+        }
+    }
+
+    private fun closeSearch() {
+        if (searchRow?.visibility != View.VISIBLE) return
+        searchField?.let {
+            val imm = context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.hideSoftInputFromWindow(it.windowToken, 0)
+            it.clearFocus()
+        }
+        searchRow?.visibility = View.GONE
+        headerRow?.visibility = View.VISIBLE
+    }
+
+    private fun runSearch(raw: String) {
+        val query = raw.trim()
+        if (query.isEmpty()) return
+        feedWeb?.loadUrl("https://m.youtube.com/results?search_query=" + Uri.encode(query))
+        searchField?.setText("")
+        closeSearch()
+    }
+
+    private fun injectYoutubeLayout(view: WebView, role: String) {
         val script = """
           (function() {
             var lootboxStyleText = [
@@ -263,11 +485,14 @@ class YoutubeFragment : Fragment() {
                 'ytm-feed-filter-chip-bar-renderer, ytm-chip-cloud-renderer { display:block !important; position:sticky !important; top:0 !important; z-index:5 !important; background:#0f0f0f !important; margin:0 !important; }',
                 'ytm-chip-cloud-chip-renderer { display:inline-block !important; }',
                 'ytm-reel-shelf-renderer, ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts] { display:none !important; }',
-                /* Watch page: player is pinned to the top; everything else scrolls under it. */
-                'ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch .player-container { position:fixed !important; top:0 !important; left:0 !important; right:0 !important; width:100% !important; max-width:100% !important; height:56.25vw !important; aspect-ratio:16/9 !important; margin:0 !important; padding:0 !important; z-index:2147483000 !important; background:#000 !important; display:block !important; }',
-                'ytm-watch ytm-player, ytm-watch #player, ytm-watch .html5-video-player { width:100% !important; height:100% !important; }',
-                'ytm-watch { margin-top:0 !important; padding-top:56.25vw !important; min-height:0 !important; }',
-                'ytm-watch #player-container-id video, ytm-watch #player-container video { width:100% !important; height:100% !important; object-fit:contain !important; }',
+                /* Watch page: keep YouTube's in-flow player placeholder; the pinned player itself is fixed by script. */
+                'ytm-watch, ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container { margin-top:0 !important; padding-top:0 !important; }',
+                'ytm-watch { min-height:0 !important; }',
+                'ytm-watch #player-container-id, ytm-watch #player-container { display:block !important; width:100% !important; max-width:100% !important; aspect-ratio:16/9 !important; }',
+                'ytm-watch #player-container-id video, ytm-watch #player-container video { max-width:100% !important; }',
+                '.lb-anc { transform:none !important; contain:none !important; filter:none !important; will-change:auto !important; perspective:none !important; }',
+                '.lb-pin { top:0 !important; margin-top:0 !important; z-index:2147483000 !important; background:#000 !important; }',
+                '.lb-sticky { position:sticky !important; top:0 !important; z-index:2147483000 !important; background:#000 !important; }',
                 /* Full-width, square-corner video thumbnails. */
                 'ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer, ytm-browse ytd-rich-item-renderer { display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; margin:0 0 10px 0 !important; padding:0 !important; }',
                 'ytm-thumbnail, ytm-thumbnail a, ytm-thumbnail img, ytd-thumbnail, ytd-thumbnail a, ytd-thumbnail img, .thumbnail, .thumbnail img { border-radius:0 !important; }',
@@ -329,25 +554,88 @@ class YoutubeFragment : Fragment() {
                 info.appendChild(button);
               });
             }
+            function clearPins() {
+              document.querySelectorAll('.lb-pin, .lb-sticky, .lb-anc').forEach(function(el) {
+                el.classList.remove('lb-pin'); el.classList.remove('lb-sticky'); el.classList.remove('lb-anc');
+              });
+            }
+            function pinWatchPlayer() {
+              var v = document.querySelector('ytm-watch video') || document.querySelector('video');
+              if (!v) return;
+              var w = window.innerWidth, el = v, found = false, chain = [];
+              while (el && el !== document.body && el !== document.documentElement) {
+                chain.push(el);
+                var pos = getComputedStyle(el).position;
+                if (pos === 'fixed' || pos === 'sticky') { el.classList.add('lb-pin'); found = true; }
+                el = el.parentElement;
+              }
+              chain.forEach(function(c) { c.classList.add('lb-anc'); });
+              if (!found) {
+                // Nothing is pinned by YouTube: pin the player-sized wrapper ourselves.
+                var box = v;
+                while (box.parentElement && box.parentElement !== document.body) {
+                  var r = box.parentElement.getBoundingClientRect();
+                  if (r.height > w * 0.65 || r.width < w * 0.9) break;
+                  box = box.parentElement;
+                }
+                box.classList.add('lb-sticky');
+              }
+            }
             function keepWatchPlayerAtTop() {
               var isWatchPage = location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0;
-              if (window.LootBoxBridge && window.LootBoxBridge.setWatchMode) {
-                window.LootBoxBridge.setWatchMode(isWatchPage);
-              }
               if (isWatchPage) {
-                window.scrollTo(0, 0);
                 var watch = document.querySelector('ytm-watch');
                 if (watch) {
                   watch.style.setProperty('margin-top', '0', 'important');
-                  watch.style.setProperty('padding-top', '56.25vw', 'important');
+                  watch.style.setProperty('padding-top', '0', 'important');
                 }
+                pinWatchPlayer();
+              } else {
+                clearPins();
               }
             }
-            function applyLootBoxFeed() { ensureLootBoxStyle(); hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); }
+            function fixFeedGap() {
+              if (location.pathname !== '/' || window.scrollY > 2) return;
+              var cards = document.querySelectorAll('ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer');
+              var card = null;
+              for (var i = 0; i < cards.length; i++) {
+                var r = cards[i].getBoundingClientRect();
+                if (r.height > 50 && r.width > window.innerWidth * 0.8) { card = cards[i]; break; }
+              }
+              if (!card || !card.parentElement) return;
+              var chip = document.querySelector('ytm-feed-filter-chip-bar-renderer, ytm-chip-cloud-renderer');
+              var cr = chip ? chip.getBoundingClientRect() : null;
+              var want = (cr && cr.height > 0) ? cr.bottom : 0;
+              var gap = card.getBoundingClientRect().top - want;
+              if (gap > 6) {
+                var host = card.parentElement;
+                var cur = parseFloat(host.getAttribute('data-lb-shift') || '0');
+                var next = cur - gap;
+                host.setAttribute('data-lb-shift', String(next));
+                host.style.setProperty('margin-top', next + 'px', 'important');
+              }
+            }
+            function applyLootBoxFeed() { ensureLootBoxStyle(); hideShorts(); addDownloadButtons(); if (window.__lbRole === 'watch') { keepWatchPlayerAtTop(); } else { fixFeedGap(); } }
             applyLootBoxFeed();
             if (!window.__lootboxYoutubeObserver) {
               window.__lootboxYoutubeObserver = new MutationObserver(applyLootBoxFeed);
               window.__lootboxYoutubeObserver.observe(document.documentElement, { childList:true, subtree:true });
+            }
+            if (!window.__lbClickHook) {
+              window.__lbClickHook = true;
+              document.addEventListener('click', function(e) {
+                if (window.__lbRole !== 'feed') return;
+                var t = e.target;
+                if (!t || !t.closest || t.closest('.lootbox-download')) return;
+                var a = t.closest('a[href*="/watch"]');
+                if (!a) return;
+                var u;
+                try { u = new URL(a.href, location.href); } catch (err) { return; }
+                var id = u.searchParams.get('v');
+                if (!id || !window.LootBoxBridge || !window.LootBoxBridge.openVideo) return;
+                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                window.LootBoxBridge.openVideo(id);
+              }, true);
             }
             if (!window.__lootboxYoutubeUrlTimer) {
               var lastUrl = location.href;
@@ -357,15 +645,13 @@ class YoutubeFragment : Fragment() {
             }
           })();
         """.trimIndent()
-        view.evaluateJavascript(script, null)
+        view.evaluateJavascript("window.__lbRole='" + role + "';\n" + script, null)
     }
 
     private inner class DownloadBridge {
         @JavascriptInterface
-        fun setWatchMode(isWatching: Boolean) {
-            activity?.runOnUiThread {
-                topChromeView?.visibility = if (isWatching) View.GONE else View.VISIBLE
-            }
+        fun openVideo(id: String) {
+            activity?.runOnUiThread { this@YoutubeFragment.openVideo(id) }
         }
 
         @JavascriptInterface
@@ -380,33 +666,53 @@ class YoutubeFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        val wv = webView ?: return
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (wv.canGoBack()) wv.goBack() else {
-                    isEnabled = false
-                    requireActivity().onBackPressedDispatcher.onBackPressed()
+                when {
+                    fullScreenCustomView != null -> exitFullScreen()
+                    searchRow?.visibility == View.VISIBLE -> closeSearch()
+                    mode == Mode.EXPANDED -> minimize()
+                    else -> {
+                        val f = feedWeb
+                        if (f != null && f.canGoBack()) f.goBack() else {
+                            isEnabled = false
+                            requireActivity().onBackPressedDispatcher.onBackPressed()
+                        }
+                    }
                 }
             }
         })
     }
 
     override fun onDestroyView() {
-        webView?.apply {
-            stopLoading()
-            removeJavascriptInterface("LootBoxBridge")
-            loadUrl("about:blank")
-            removeAllViews()
-            destroy()
+        for (w in listOf(feedWeb, watchWeb)) {
+            w?.apply {
+                stopLoading()
+                removeJavascriptInterface("LootBoxBridge")
+                loadUrl("about:blank")
+                removeAllViews()
+                destroy()
+            }
         }
         fullScreenCustomView = null
         fullScreenCallback = null
-        webView = null
+        feedWeb = null
+        watchWeb = null
+        swipe = null
+        frame = null
+        holder = null
+        miniOverlay = null
         progress = null
         searchField = null
+        headerRow = null
+        searchRow = null
         topChromeView = null
         super.onDestroyView()
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private companion object {
+        val VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
+    }
 }
