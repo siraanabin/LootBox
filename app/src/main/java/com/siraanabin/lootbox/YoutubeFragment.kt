@@ -266,8 +266,10 @@ class YoutubeFragment : Fragment() {
                 'ytm-bottom-navigation-renderer { display:none !important; }',
                 'ytm-reel-shelf-renderer, ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts], ytm-pivot-bar-item-renderer[tab-identifier="shorts"] { display:none !important; }',
                 'a[href*="/shorts/"] { display:none !important; }',
-                'ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container, ytd-watch-flexy #player-container, ytd-watch-flexy #player-container-inner { position:sticky !important; top:0 !important; z-index:50 !important; display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; aspect-ratio:16/9 !important; margin:0 !important; padding:0 !important; background:#000 !important; }',
-                'ytm-watch #player-container-id video, ytm-watch #player-container video, ytm-watch ytm-player video, ytd-watch-flexy #player-container video { display:block !important; width:100% !important; height:100% !important; object-fit:contain !important; }',
+                /* Size only the outer player wrapper; nested player elements must not reserve another 16:9 block. */
+                'ytm-watch #player-container-id, ytd-watch-flexy #player-container { position:sticky !important; top:0 !important; z-index:50 !important; display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; aspect-ratio:16/9 !important; height:auto !important; min-height:0 !important; margin:0 !important; padding:0 !important; background:#000 !important; }',
+                'ytm-watch #player-container-id ytm-player, ytm-watch #player-container-id #movie_player, ytm-watch #player-container-id video, ytd-watch-flexy #player-container ytm-player, ytd-watch-flexy #player-container #movie_player, ytd-watch-flexy #player-container video { width:100% !important; height:100% !important; max-height:100% !important; aspect-ratio:auto !important; margin:0 !important; padding:0 !important; background:transparent !important; }',
+                'ytm-watch #player-container-id video, ytd-watch-flexy #player-container video { display:block !important; object-fit:contain !important; }',
                 'ytm-watch ytm-topbar-menu-button-renderer, ytm-watch ytm-searchbox, ytm-watch ytm-button-renderer, ytm-watch [aria-label*="Open app"], ytm-watch [aria-label*="Search"], ytm-watch [aria-label*="More"] { display:none !important; }'
               ].join('');
               var style = document.getElementById('lootbox-vanced-chrome');
@@ -293,17 +295,32 @@ class YoutubeFragment : Fragment() {
                   window.LootBoxBridge.setWatchMode(watching);
                 }
                 if (watching) {
-                  var player = document.querySelector('#player-container-id, #player-container, ytm-player, ytd-watch-flexy #player-container-inner');
+                  // Pick one outer wrapper only. Applying 16:9 to nested ytm-player too
+                  // creates a second blank block directly below the video.
+                  var player = document.querySelector('#player-container-id') ||
+                               document.querySelector('ytd-watch-flexy #player-container') ||
+                               document.querySelector('ytm-watch #player-container');
                   if (player) {
                     player.style.setProperty('position', 'sticky', 'important');
                     player.style.setProperty('top', '0px', 'important');
                     player.style.setProperty('z-index', '50', 'important');
+                    player.style.setProperty('display', 'block', 'important');
+                    player.style.setProperty('box-sizing', 'border-box', 'important');
                     player.style.setProperty('width', '100%', 'important');
                     player.style.setProperty('max-width', '100%', 'important');
                     player.style.setProperty('aspect-ratio', '16 / 9', 'important');
+                    player.style.setProperty('height', 'auto', 'important');
+                    player.style.setProperty('min-height', '0', 'important');
                     player.style.setProperty('margin', '0', 'important');
                     player.style.setProperty('padding', '0', 'important');
                     player.style.setProperty('background', '#000', 'important');
+                    player.querySelectorAll('ytm-player, #movie_player, video').forEach(function(child) {
+                      child.style.setProperty('aspect-ratio', 'auto', 'important');
+                      child.style.setProperty('height', '100%', 'important');
+                      child.style.setProperty('max-height', '100%', 'important');
+                      child.style.setProperty('margin', '0', 'important');
+                      child.style.setProperty('padding', '0', 'important');
+                    });
                   }
                 }
               }
@@ -518,11 +535,44 @@ class YoutubeFragment : Fragment() {
         val wv = webView ?: return
         backCallback = object : OnBackPressedCallback(!isHidden) {
             override fun handleOnBackPressed() {
+                // Back from a watch page should minimize the current video first.
+                // YouTube's own history navigation normally turns the player into its mini-player.
+                if (locationIsWatchPage()) {
+                    minimizeYoutubePlayer()
+                    return
+                }
                 // Keep edge-back on YouTube Home from closing LootBox or changing tabs.
                 if (wv.canGoBack()) wv.goBack()
                 // At the YouTube home root, consume the back gesture.
             }
         }.also { requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, it) }
+    }
+
+    private fun minimizeYoutubePlayer() {
+        val wv = webView ?: return
+        val script = """
+            (function() {
+              var selectors = [
+                '.ytp-miniplayer-button',
+                'button[aria-label*="Miniplayer"]',
+                'button[aria-label*="miniplayer"]',
+                'button[aria-label*="Minimize"]',
+                'button[aria-label*="minimize"]',
+                'ytm-player-controls-overlay button[aria-label*="Min"]'
+              ];
+              for (var i = 0; i < selectors.length; i++) {
+                var button = document.querySelector(selectors[i]);
+                if (button) { button.click(); return 'minimized'; }
+              }
+              history.back();
+              return 'navigated-back';
+            })();
+        """.trimIndent()
+        wv.evaluateJavascript(script) { result ->
+            if ((result == null || result == "null") && wv.canGoBack()) {
+                wv.goBack()
+            }
+        }
     }
 
     private fun stopYoutubePlayback() {
