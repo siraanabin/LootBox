@@ -10,20 +10,17 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.EditorInfo
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.Toast
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -33,7 +30,6 @@ import androidx.fragment.app.Fragment
 class YoutubeFragment : Fragment() {
     private var webView: WebView? = null
     private var progress: ProgressBar? = null
-    private var searchField: EditText? = null
     private var topChromeView: View? = null
     private var fullScreenCustomView: View? = null
     private var fullScreenCallback: WebChromeClient.CustomViewCallback? = null
@@ -440,7 +436,6 @@ class YoutubeFragment : Fragment() {
         fullScreenCallback = null
         webView = null
         progress = null
-        searchField = null
         topChromeView = null
         super.onDestroyView()
     }
