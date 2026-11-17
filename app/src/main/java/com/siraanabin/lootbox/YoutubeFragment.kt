@@ -34,6 +34,9 @@ class YoutubeFragment : Fragment() {
     private var progress: ProgressBar? = null
     private var searchField: EditText? = null
     private var topChromeView: View? = null
+    private var fullScreenCustomView: View? = null
+    private var fullScreenCallback: WebChromeClient.CustomViewCallback? = null
+    private var previousSystemUiVisibility: Int = 0
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
@@ -155,6 +158,7 @@ class YoutubeFragment : Fragment() {
 
         val wv = WebView(ctx).apply {
             setBackgroundColor(Color.rgb(11, 14, 19))
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
@@ -198,6 +202,39 @@ class YoutubeFragment : Fragment() {
                 progress?.progress = newProgress
                 if (newProgress >= 100) progress?.visibility = View.GONE
             }
+
+            override fun onShowCustomView(view: View, callback: CustomViewCallback) {
+                if (fullScreenCustomView != null) {
+                    callback.onCustomViewHidden()
+                    return
+                }
+                val decor = requireActivity().window.decorView as? ViewGroup ?: return
+                fullScreenCustomView = view
+                fullScreenCallback = callback
+                previousSystemUiVisibility = decor.systemUiVisibility
+                topChromeView?.visibility = View.GONE
+                decor.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                )
+                decor.addView(view, ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                ))
+            }
+
+            override fun onHideCustomView() {
+                val decor = activity?.window?.decorView as? ViewGroup
+                fullScreenCustomView?.let { decor?.removeView(it) }
+                fullScreenCustomView = null
+                fullScreenCallback?.onCustomViewHidden()
+                fullScreenCallback = null
+                decor?.systemUiVisibility = previousSystemUiVisibility
+                if (locationIsWatchPage()) topChromeView?.visibility = View.GONE
+                else topChromeView?.visibility = View.VISIBLE
+            }
         }
         frame.addView(wv)
         root.addView(frame, LinearLayout.LayoutParams(
@@ -228,6 +265,8 @@ class YoutubeFragment : Fragment() {
             .show()
         searchField = input
     }
+
+    private fun locationIsWatchPage(): Boolean = webView?.url?.let { it.contains("/watch") } == true
 
     private fun wvSafeLoad(url: String) {
         webView?.loadUrl(url)
@@ -369,6 +408,8 @@ class YoutubeFragment : Fragment() {
             removeAllViews()
             destroy()
         }
+        fullScreenCustomView = null
+        fullScreenCallback = null
         webView = null
         progress = null
         searchField = null
