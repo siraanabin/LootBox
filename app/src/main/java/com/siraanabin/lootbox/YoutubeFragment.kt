@@ -8,7 +8,6 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
-import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
@@ -26,6 +25,9 @@ import android.widget.Toast
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.activity.OnBackPressedCallback
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.Fragment
 
 class YoutubeFragment : Fragment() {
@@ -35,7 +37,8 @@ class YoutubeFragment : Fragment() {
     private var topChromeView: View? = null
     private var fullScreenCustomView: View? = null
     private var fullScreenCallback: WebChromeClient.CustomViewCallback? = null
-    private var previousSystemUiVisibility: Int = 0
+    private var previousSystemBarsVisible: Boolean = true
+    private var backCallback: OnBackPressedCallback? = null
     private var youtubeFallbackAttempted: Boolean = false
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -83,12 +86,12 @@ class YoutubeFragment : Fragment() {
             setColorFilter(Color.WHITE)
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
             contentDescription = "Search YouTube"
-            setOnClickListener { showSearchDialog() }
+            setOnClickListener { openYoutubeSearch() }
         }
         header.addView(searchButton, LinearLayout.LayoutParams(dp(48), dp(48)))
         topChrome.addView(header)
 
-        // The native 48dp category strip was removed; keep only the header.
+        // YouTube's own category chips remain visible below the native LootBox header.
 
         root.addView(topChrome)
 
@@ -188,14 +191,14 @@ class YoutubeFragment : Fragment() {
                 val decor = requireActivity().window.decorView as? ViewGroup ?: return
                 fullScreenCustomView = view
                 fullScreenCallback = callback
-                previousSystemUiVisibility = decor.systemUiVisibility
+                previousSystemBarsVisible = ViewCompat.getRootWindowInsets(decor)
+                    ?.isVisible(WindowInsetsCompat.Type.systemBars()) ?: true
                 topChromeView?.visibility = View.GONE
-                decor.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                )
+                WindowInsetsControllerCompat(requireActivity().window, decor).apply {
+                    systemBarsBehavior =
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    hide(WindowInsetsCompat.Type.systemBars())
+                }
                 decor.addView(view, ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -208,7 +211,11 @@ class YoutubeFragment : Fragment() {
                 fullScreenCustomView = null
                 fullScreenCallback?.onCustomViewHidden()
                 fullScreenCallback = null
-                decor?.systemUiVisibility = previousSystemUiVisibility
+                decor?.let {
+                    val controller = WindowInsetsControllerCompat(requireActivity().window, it)
+                    if (previousSystemBarsVisible) controller.show(WindowInsetsCompat.Type.systemBars())
+                    else controller.hide(WindowInsetsCompat.Type.systemBars())
+                }
                 if (locationIsWatchPage()) topChromeView?.visibility = View.GONE
                 else topChromeView?.visibility = View.VISIBLE
             }
@@ -225,25 +232,26 @@ class YoutubeFragment : Fragment() {
         return root
     }
 
-    private fun showSearchDialog() {
-        val input = EditText(requireContext()).apply {
-            hint = "Search YouTube"
-            setSingleLine(true)
-            inputType = android.text.InputType.TYPE_CLASS_TEXT
-            imeOptions = EditorInfo.IME_ACTION_SEARCH
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle("Search YouTube")
-            .setView(input)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Search") { _, _ ->
-                val query = input.text?.toString()?.trim().orEmpty()
-                if (query.isNotEmpty()) {
-                    webView?.loadUrl("https://m.youtube.com/results?search_query=" + Uri.encode(query))
-                }
-            }
-            .show()
-        searchField = input
+    private fun openYoutubeSearch() {
+        // Open YouTube's own search UI rather than showing a separate LootBox dialog.
+        val script = """
+            (function() {
+              var selectors = [
+                'ytm-searchbox button',
+                'ytm-searchbox [role="button"]',
+                'button[aria-label="Search"]',
+                'button[aria-label*="Search"]',
+                'a[aria-label="Search"]',
+                'ytm-mobile-topbar-renderer button'
+              ];
+              for (var i = 0; i < selectors.length; i++) {
+                var button = document.querySelector(selectors[i]);
+                if (button) { button.click(); return; }
+              }
+              location.href = 'https://www.youtube.com/results?search_query=';
+            })();
+        """.trimIndent()
+        webView?.evaluateJavascript(script, null)
     }
 
     private fun locationIsWatchPage(): Boolean = webView?.url?.let { it.contains("/watch") } == true
@@ -257,14 +265,17 @@ class YoutubeFragment : Fragment() {
           (function() {
             var lootboxStyleText = [
                 /* Remove YouTube's own chrome and bottom tabs; LootBox provides search/navigation. */
-                'ytm-mobile-topbar-renderer, ytm-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-mini-guide-renderer, ytd-masthead, #masthead-container, ytd-mini-guide-renderer, ytm-chip-cloud-renderer, ytm-chip-cloud-chip-renderer { display:none !important; }',
+                'ytm-mobile-topbar-renderer, ytm-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-miniplayer, ytm-mini-guide-renderer, ytd-masthead, #masthead-container, ytd-mini-guide-renderer { display:none !important; }',
+                /* Keep YouTube's category chips visible and horizontally scrollable. */
+                'ytm-chip-cloud-renderer, ytm-feed-filter-chip-bar-renderer, ytd-feed-filter-chip-bar-renderer { display:block !important; visibility:visible !important; overflow-x:auto !important; overflow-y:hidden !important; white-space:nowrap !important; position:sticky !important; top:0 !important; z-index:12 !important; background:#0f0f0f !important; scrollbar-width:none !important; }',
+                'ytm-chip-cloud-renderer #chips, ytm-chip-cloud-renderer [role="list"], ytm-feed-filter-chip-bar-renderer #chips { display:flex !important; flex-wrap:nowrap !important; width:max-content !important; min-width:100% !important; overflow:visible !important; gap:8px !important; }',
+                'ytm-chip-cloud-chip-renderer, yt-chip-cloud-chip-renderer, ytm-feed-filter-chip-bar-renderer button, ytd-feed-filter-chip-bar-renderer button { display:inline-flex !important; flex:0 0 auto !important; white-space:nowrap !important; }',
                 'ytm-app, #app { padding-top:0 !important; }',
                 'ytm-reel-shelf-renderer, ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts] { display:none !important; }',
                 /* Watch page only: reset native YouTube top offsets and preserve the player layout. */
-                'ytm-watch, ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container { margin-top:0 !important; padding-top:0 !important; }',
-                'ytm-watch { min-height:0 !important; }',
-                'ytm-watch #player-container-id, ytm-watch #player-container { display:block !important; width:100% !important; max-width:100% !important; aspect-ratio:16/9 !important; }',
-                'ytm-watch #player-container-id video, ytm-watch #player-container video { max-width:100% !important; }',
+                'ytm-watch, ytd-watch-flexy, ytm-watch #content, ytd-watch-flexy #columns { min-height:0 !important; overflow:visible !important; }',
+                'ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container, ytd-watch-flexy #player-container, ytd-watch-flexy #player-container-inner { position:sticky !important; top:0 !important; z-index:30 !important; display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; aspect-ratio:16/9 !important; margin:0 !important; padding:0 !important; background:#000 !important; }',
+                'ytm-watch #player-container-id video, ytm-watch #player-container video, ytm-watch ytm-player video, ytd-watch-flexy #player-container video { display:block !important; width:100% !important; height:100% !important; max-width:100% !important; object-fit:contain !important; }',
                 /* Full-width, square-corner video thumbnails. */
                 'ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer, ytm-browse ytd-rich-item-renderer { display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; margin:0 0 10px 0 !important; padding:0 !important; }',
                 'ytm-thumbnail, ytm-thumbnail a, ytm-thumbnail img, ytd-thumbnail, ytd-thumbnail a, ytd-thumbnail img, .thumbnail, .thumbnail img { border-radius:0 !important; }',
@@ -273,7 +284,7 @@ class YoutubeFragment : Fragment() {
                 /* Remove reserved promo, nudge and shelf space above the first feed item. */
                 'ytm-browse ytm-rich-section-renderer, ytm-browse ytm-statement-banner-renderer, ytm-browse ytm-mealbar-promo-renderer, ytm-browse ytm-feed-nudge-renderer, ytm-browse ytm-companion-slot, ytm-browse ytm-promoted-sparkles-web-renderer, ytm-browse ytm-reel-shelf-renderer { display:none !important; height:0 !important; min-height:0 !important; margin:0 !important; padding:0 !important; }',
                 'ytm-browse, ytm-browse #contents, ytm-browse ytm-rich-grid-renderer, ytm-browse ytm-rich-grid-renderer #contents, ytm-browse .rich-grid-renderer-contents { margin-top:0 !important; padding-top:0 !important; min-height:0 !important; }',
-                'ytm-browse ytm-feed-filter-chip-bar-renderer { margin-bottom:0 !important; padding-bottom:0 !important; }',
+                'ytm-browse ytm-feed-filter-chip-bar-renderer, ytm-browse ytm-chip-cloud-renderer { margin-bottom:0 !important; padding-bottom:0 !important; }',
                 /* Feed cards: no extra borders, padding or background bars. */
                 'ytm-rich-item-renderer, ytm-video-with-context-renderer { margin:0 0 10px 0 !important; padding:0 !important; border:0 !important; background:transparent !important; }',
                 /* Thumbnail containers fill the available card width at 16:9. */
@@ -331,13 +342,28 @@ class YoutubeFragment : Fragment() {
               if (window.LootBoxBridge && window.LootBoxBridge.setWatchMode) {
                 window.LootBoxBridge.setWatchMode(isWatchPage);
               }
-              if (isWatchPage) {
-                window.scrollTo(0, 0);
-                var watch = document.querySelector('ytm-watch');
-                if (watch) {
-                  watch.style.setProperty('margin-top', '0', 'important');
-                  watch.style.setProperty('padding-top', '0', 'important');
-                }
+              if (!isWatchPage) return;
+
+              var player = document.querySelector(
+                '#player-container-id, #player-container, ytm-player, ytd-watch-flexy #player-container-inner, #movie_player'
+              );
+              if (player) {
+                var stickyPlayer = player.closest(
+                  '#player-container-id, #player-container, ytm-player, #player-container-inner'
+                ) || player;
+                stickyPlayer.style.setProperty('position', 'sticky', 'important');
+                stickyPlayer.style.setProperty('top', '0', 'important');
+                stickyPlayer.style.setProperty('z-index', '30', 'important');
+                stickyPlayer.style.setProperty('width', '100%', 'important');
+                stickyPlayer.style.setProperty('max-width', '100%', 'important');
+                stickyPlayer.style.setProperty('aspect-ratio', '16 / 9', 'important');
+                stickyPlayer.style.setProperty('background', '#000', 'important');
+              }
+              var watch = document.querySelector('ytm-watch, ytd-watch-flexy');
+              if (watch) {
+                watch.style.setProperty('margin-top', '0', 'important');
+                watch.style.setProperty('padding-top', '0', 'important');
+                watch.style.setProperty('overflow', 'visible', 'important');
               }
             }
             function applyLootBoxFeed() { ensureLootBoxStyle(); hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); }
@@ -378,17 +404,27 @@ class YoutubeFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val wv = webView ?: return
-        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, object : OnBackPressedCallback(true) {
+        backCallback = object : OnBackPressedCallback(!isHidden) {
             override fun handleOnBackPressed() {
-                if (wv.canGoBack()) wv.goBack() else {
-                    isEnabled = false
-                    requireActivity().onBackPressedDispatcher.onBackPressed()
-                }
+                // Keep edge-back on YouTube Home from closing LootBox or changing tabs.
+                if (wv.canGoBack()) wv.goBack()
+                // At the YouTube home root, consume the back gesture.
             }
-        })
+        }.also { requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, it) }
+    }
+
+    override fun onHiddenChanged(hidden: Boolean) {
+        super.onHiddenChanged(hidden)
+        backCallback?.isEnabled = !hidden
+    }
+
+    override fun onResume() {
+        super.onResume()
+        backCallback?.isEnabled = !isHidden
     }
 
     override fun onDestroyView() {
+        backCallback = null
         webView?.apply {
             stopLoading()
             removeJavascriptInterface("LootBoxBridge")
@@ -396,7 +432,11 @@ class YoutubeFragment : Fragment() {
             removeAllViews()
             destroy()
         }
+        fullScreenCustomView?.let { custom ->
+            (activity?.window?.decorView as? ViewGroup)?.removeView(custom)
+        }
         fullScreenCustomView = null
+        fullScreenCallback?.onCustomViewHidden()
         fullScreenCallback = null
         webView = null
         progress = null
