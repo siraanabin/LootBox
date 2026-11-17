@@ -125,6 +125,11 @@ class YoutubeFragment : Fragment() {
         wv.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val host = request.url.host.orEmpty().lowercase()
+                if ((host == "youtube.com" || host.endsWith(".youtube.com")) &&
+                    request.url.path.orEmpty().contains("/shorts/")) {
+                    view.loadUrl("https://m.youtube.com/")
+                    return true
+                }
                 val insideYoutube = host == "youtube.com" || host.endsWith(".youtube.com") ||
                     host == "youtu.be" || host.endsWith(".googlevideo.com") ||
                     host.endsWith(".ytimg.com") || host.endsWith(".google.com") ||
@@ -252,13 +257,19 @@ class YoutubeFragment : Fragment() {
     }
 
     private fun injectMinimalYoutubeChrome(view: WebView) {
-        // Keep the native mobile YouTube feed untouched to protect WebView rendering.
-        // Only remove the duplicate web header and match the dark Vanced-style surface.
+        // Keep YouTube's native page structure; apply small, isolated CSS changes only.
         val script = """
             (function() {
-              var css = 'ytm-mobile-topbar-renderer, ytm-header, ytd-masthead, #masthead-container { display:none !important; }' +
-                        'html, body, ytm-app, #app { background:#0f0f0f !important; }' +
-                        'ytm-bottom-navigation-renderer { display:none !important; }';
+              var css = [
+                'ytm-mobile-topbar-renderer, ytm-header, ytd-masthead, #masthead-container { display:none !important; }',
+                'html, body, ytm-app, #app { background:#0f0f0f !important; }',
+                'ytm-bottom-navigation-renderer { display:none !important; }',
+                'ytm-reel-shelf-renderer, ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts], ytm-pivot-bar-item-renderer[tab-identifier="shorts"] { display:none !important; }',
+                'a[href*="/shorts/"] { display:none !important; }',
+                'ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container, ytd-watch-flexy #player-container, ytd-watch-flexy #player-container-inner { position:sticky !important; top:0 !important; z-index:50 !important; display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; aspect-ratio:16/9 !important; margin:0 !important; padding:0 !important; background:#000 !important; }',
+                'ytm-watch #player-container-id video, ytm-watch #player-container video, ytm-watch ytm-player video, ytd-watch-flexy #player-container video { display:block !important; width:100% !important; height:100% !important; object-fit:contain !important; }',
+                'ytm-watch ytm-topbar-menu-button-renderer, ytm-watch ytm-searchbox, ytm-watch ytm-button-renderer, ytm-watch [aria-label*="Open app"], ytm-watch [aria-label*="Search"], ytm-watch [aria-label*="More"] { display:none !important; }'
+              ].join('');
               var style = document.getElementById('lootbox-vanced-chrome');
               if (!style) {
                 style = document.createElement('style');
@@ -266,9 +277,58 @@ class YoutubeFragment : Fragment() {
                 (document.head || document.documentElement).appendChild(style);
               }
               if (style.textContent !== css) style.textContent = css;
-              var watching = location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0;
-              if (window.LootBoxBridge && window.LootBoxBridge.setWatchMode) {
-                window.LootBoxBridge.setWatchMode(watching);
+
+              function blockShorts() {
+                document.querySelectorAll('a[href*="/shorts/"]').forEach(function(a) {
+                  var card = a.closest('ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytm-rich-item-renderer, ytd-rich-item-renderer') || a;
+                  card.style.setProperty('display', 'none', 'important');
+                });
+                document.querySelectorAll('ytm-reel-shelf-renderer, ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts]').forEach(function(el) {
+                  el.style.setProperty('display', 'none', 'important');
+                });
+              }
+              function syncWatchMode() {
+                var watching = location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0;
+                if (window.LootBoxBridge && window.LootBoxBridge.setWatchMode) {
+                  window.LootBoxBridge.setWatchMode(watching);
+                }
+                if (watching) {
+                  var player = document.querySelector('#player-container-id, #player-container, ytm-player, ytd-watch-flexy #player-container-inner');
+                  if (player) {
+                    player.style.setProperty('position', 'sticky', 'important');
+                    player.style.setProperty('top', '0px', 'important');
+                    player.style.setProperty('z-index', '50', 'important');
+                    player.style.setProperty('width', '100%', 'important');
+                    player.style.setProperty('max-width', '100%', 'important');
+                    player.style.setProperty('aspect-ratio', '16 / 9', 'important');
+                    player.style.setProperty('margin', '0', 'important');
+                    player.style.setProperty('padding', '0', 'important');
+                    player.style.setProperty('background', '#000', 'important');
+                  }
+                }
+              }
+              function apply() { blockShorts(); syncWatchMode(); }
+              apply();
+              if (!window.__lootboxMinimalObserver) {
+                window.__lootboxMinimalObserver = new MutationObserver(apply);
+                window.__lootboxMinimalObserver.observe(document.documentElement, {childList:true, subtree:true});
+              }
+              if (!window.__lootboxMinimalUrlTimer) {
+                var lastUrl = location.href;
+                window.__lootboxMinimalUrlTimer = setInterval(function() {
+                  if (location.href !== lastUrl) { lastUrl = location.href; apply(); }
+                }, 350);
+              }
+              if (!window.__lootboxShortsGuard) {
+                window.__lootboxShortsGuard = true;
+                document.addEventListener('click', function(event) {
+                  var anchor = event.target && event.target.closest ? event.target.closest('a[href*="/shorts/"]') : null;
+                  if (anchor) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    location.href = 'https://m.youtube.com/';
+                  }
+                }, true);
               }
             })();
         """.trimIndent()
@@ -465,19 +525,40 @@ class YoutubeFragment : Fragment() {
         }.also { requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, it) }
     }
 
+    private fun stopYoutubePlayback() {
+        webView?.evaluateJavascript(
+            "(function(){try{var p=document.getElementById('movie_player');if(p&&p.pauseVideo)p.pauseVideo();document.querySelectorAll('video').forEach(function(v){v.pause();});}catch(e){}})();",
+            null
+        )
+        webView?.onPause()
+    }
+
     override fun onHiddenChanged(hidden: Boolean) {
         super.onHiddenChanged(hidden)
         backCallback?.isEnabled = !hidden
+        if (hidden) {
+            stopYoutubePlayback()
+        } else {
+            webView?.onResume()
+        }
+    }
+
+    override fun onPause() {
+        stopYoutubePlayback()
+        super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
         backCallback?.isEnabled = !isHidden
+        if (!isHidden) webView?.onResume()
     }
 
     override fun onDestroyView() {
         backCallback = null
         webView?.apply {
+            evaluateJavascript("(function(){try{var p=document.getElementById('movie_player');if(p&&p.pauseVideo)p.pauseVideo();document.querySelectorAll('video').forEach(function(v){v.pause();});}catch(e){}})();", null)
+            onPause()
             stopLoading()
             removeJavascriptInterface("LootBoxBridge")
             loadUrl("about:blank")
