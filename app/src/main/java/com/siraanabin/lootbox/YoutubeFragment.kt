@@ -72,7 +72,7 @@ class YoutubeFragment : Fragment() {
         header.addView(logo, LinearLayout.LayoutParams(dp(30), dp(21)))
         val brand = TextView(ctx).apply {
             text = "YouTube"
-            setTextColor(Color.WHITE)
+            setTextColor(androidx.core.content.ContextCompat.getColor(ctx, R.color.text))
             textSize = 21f
             setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
             setPadding(dp(7), 0, 0, 0)
@@ -80,7 +80,7 @@ class YoutubeFragment : Fragment() {
         header.addView(brand, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val searchButton = ImageButton(ctx).apply {
             setImageResource(android.R.drawable.ic_menu_search)
-            setColorFilter(Color.WHITE)
+            setColorFilter(androidx.core.content.ContextCompat.getColor(ctx, R.color.text))
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
             contentDescription = "Search YouTube"
             setOnClickListener { showSearchDialog() }
@@ -130,7 +130,7 @@ class YoutubeFragment : Fragment() {
                     val active = i == index
                     view.setTextColor(if (active) Color.WHITE else androidx.core.content.ContextCompat.getColor(ctx, R.color.text))
                     view.background = GradientDrawable().apply {
-                        setColor(if (active) Color.WHITE else Color.rgb(39, 39, 39))
+                        setColor(if (active) androidx.core.content.ContextCompat.getColor(ctx, R.color.nav_active) else androidx.core.content.ContextCompat.getColor(ctx, R.color.chip))
                         cornerRadius = dp(10).toFloat()
                     }
                 }
