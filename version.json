@@ -1,5 +1,6 @@
 {
   "versionCode": 1017,
   "versionName": "3.1017",
-  "apkUrl": "https://github.com/siraanabin/LootBox/releases/download/build-1017/LootBox.apk"
+  "apkUrl": "https://github.com/siraanabin/LootBox/releases/download/build-1017/LootBox.apk",
+  "manifestRevision": "2026-11-17-refresh"
 }
