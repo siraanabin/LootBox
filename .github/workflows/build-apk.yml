@@ -17,6 +17,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Import uploaded project ZIP
+        id: import_zip
+        shell: bash
+        run: |
+          shopt -s nullglob
+          archives=(LootBox*.zip)
+          if [ "${#archives[@]}" -eq 0 ]; then
+            echo "imported=false" >> "$GITHUB_OUTPUT"
+            echo "No LootBox project ZIP uploaded; building current source."
+            exit 0
+          fi
+          if [ "${#archives[@]}" -ne 1 ]; then
+            echo "Expected exactly one LootBox*.zip in repository root; found ${#archives[@]}."
+            exit 1
+          fi
+          ARCHIVE="${archives[0]}"
+          mkdir -p "$RUNNER_TEMP/lootbox-import"
+          unzip -q "$ARCHIVE" -d "$RUNNER_TEMP/lootbox-import"
+          ROOT="$RUNNER_TEMP/lootbox-import"
+          # Accept ZIPs containing one enclosing project folder.
+          mapfile -t TOP_ITEMS < <(find "$ROOT" -mindepth 1 -maxdepth 1)
+          if [ "${#TOP_ITEMS[@]}" -eq 1 ] && [ -d "${TOP_ITEMS[0]}" ]; then
+            ROOT="${TOP_ITEMS[0]}"
+          fi
+          if [ ! -f "$ROOT/app/build.gradle.kts" ] || [ ! -f "$ROOT/settings.gradle.kts" ]; then
+            echo "ZIP does not contain a valid LootBox Android project at its root."
+            exit 1
+          fi
+          # Keep the active importer/build workflow and repository automation intact.
+          rsync -a --delete --exclude='.git/' --exclude='.github/' "$ROOT/" ./
+          rm -f "$ARCHIVE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Import LootBox project from uploaded ZIP [skip ci]"
+          git push origin HEAD:main
+          echo "imported=true" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v4
         with:
@@ -42,7 +82,6 @@ jobs:
         id: calculate_version
         run: |
           CURRENT_CODE=$(python3 -c 'import json; print(json.load(open("version.json")).get("versionCode", 0))')
-          # Preserve compatibility with already-installed builds that used versionCode 1016.
           if [ "$CURRENT_CODE" -lt 1016 ]; then CURRENT_CODE=1016; fi
           VERSION_CODE=$((CURRENT_CODE + 1))
           VERSION_NAME="3.$VERSION_CODE"
@@ -50,7 +89,6 @@ jobs:
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
-          echo "Building LootBox $VERSION_NAME (versionCode $VERSION_CODE)"
 
       - name: Build APK
         env:
@@ -61,23 +99,6 @@ jobs:
 
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk LootBox.apk
-
-      - name: Package player redesign source ZIP
-        run: |
-          mkdir -p player-redesign/app/src/main/java/com/siraanabin/lootbox
-          mkdir -p player-redesign/app/src/main/res/layout
-          mkdir -p player-redesign/app/src/main/res/drawable
-          cp app/src/main/java/com/siraanabin/lootbox/PlayerActivity.kt player-redesign/app/src/main/java/com/siraanabin/lootbox/
-          cp app/src/main/res/layout/activity_player.xml player-redesign/app/src/main/res/layout/
-          cp app/src/main/res/drawable/player_*.xml player-redesign/app/src/main/res/drawable/
-          cp app/src/main/res/drawable/ic_player_*.xml player-redesign/app/src/main/res/drawable/
-          cp PLAYER_REDESIGN_README.md player-redesign/README.md
-          (cd player-redesign && zip -qr ../LootBox-Premium-Player-Redesign.zip .)
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: LootBox-Premium-Player-Redesign
-          path: LootBox-Premium-Player-Redesign.zip
 
       - uses: actions/upload-artifact@v4
         with:
