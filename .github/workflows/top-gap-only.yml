@@ -51,7 +51,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: gradle assembleDebug --stacktrace -PverCode=1008
+        run: gradle assembleDebug --stacktrace -PverCode=1009
 
       - name: Upload the single APK
         uses: actions/upload-artifact@v4
@@ -64,8 +64,8 @@ jobs:
       - name: Publish installable update APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-1008
-          name: LootBox 3.1008
+          tag_name: build-1009
+          name: LootBox 3.1009
           target_commitish: fix/top-gap-only
           make_latest: true
           files: app/build/outputs/apk/debug/app-debug.apk
