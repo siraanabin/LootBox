@@ -45,10 +45,14 @@ object Updater {
     }
 
     private fun fetch(): Info? {
-        val c = URL(MANIFEST).openConnection() as HttpURLConnection
+        // Bypass GitHub raw/CDN caches so the app always reads the newest release manifest.
+        val manifestUrl = "$MANIFEST?cacheBust=${System.currentTimeMillis()}"
+        val c = URL(manifestUrl).openConnection() as HttpURLConnection
         c.connectTimeout = 15000
         c.readTimeout = 15000
         c.setRequestProperty("User-Agent", "LootBox")
+        c.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0")
+        c.setRequestProperty("Pragma", "no-cache")
         try {
             if (c.responseCode != 200) return null
             val o = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
