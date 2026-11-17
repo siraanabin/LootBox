@@ -46,7 +46,48 @@ class YoutubeFragment : Fragment() {
             setBackgroundColor(Color.rgb(11, 14, 19))
         }
 
-        // Use YouTube's own page header once; the extra LootBox header caused a duplicate logo/search row.
+        // Vanced-inspired native dark app bar; hide only YouTube's duplicate web header.
+        val topChrome = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.rgb(15, 15, 15))
+        }
+        topChromeView = topChrome
+
+        val header = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(16), 0, dp(8), 0)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56))
+        }
+        val logo = TextView(ctx).apply {
+            text = "▶"
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(255, 0, 0))
+                cornerRadius = dp(6).toFloat()
+            }
+        }
+        header.addView(logo, LinearLayout.LayoutParams(dp(30), dp(21)))
+        val brand = TextView(ctx).apply {
+            text = "YouTube"
+            setTextColor(Color.WHITE)
+            textSize = 21f
+            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            setPadding(dp(7), 0, 0, 0)
+        }
+        header.addView(brand, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val searchButton = ImageButton(ctx).apply {
+            setImageResource(android.R.drawable.ic_menu_search)
+            setColorFilter(Color.WHITE)
+            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+            contentDescription = "Search YouTube"
+            setOnClickListener { openYoutubeSearch() }
+        }
+        header.addView(searchButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+        topChrome.addView(header)
+        root.addView(topChrome)
 
 
         val frame = FrameLayout(ctx)
@@ -150,7 +191,7 @@ class YoutubeFragment : Fragment() {
                 progress?.visibility = View.GONE
                 // Diagnostic isolation: first verify that an unmodified YouTube page renders.
                 // Re-enable the custom CSS/JS only after the plain page is confirmed working.
-                if (ENABLE_YOUTUBE_CUSTOMIZATION) injectYoutubeLayout(view)
+                injectMinimalYoutubeChrome(view)
             }
         }
         wv.webChromeClient = object : WebChromeClient() {
@@ -208,6 +249,30 @@ class YoutubeFragment : Fragment() {
             wv.loadUrl(initialUrl)
         }
         return root
+    }
+
+    private fun injectMinimalYoutubeChrome(view: WebView) {
+        // Keep the native mobile YouTube feed untouched to protect WebView rendering.
+        // Only remove the duplicate web header and match the dark Vanced-style surface.
+        val script = """
+            (function() {
+              var css = 'ytm-mobile-topbar-renderer, ytm-header, ytd-masthead, #masthead-container { display:none !important; }' +
+                        'html, body, ytm-app, #app { background:#0f0f0f !important; }' +
+                        'ytm-bottom-navigation-renderer { display:none !important; }';
+              var style = document.getElementById('lootbox-vanced-chrome');
+              if (!style) {
+                style = document.createElement('style');
+                style.id = 'lootbox-vanced-chrome';
+                (document.head || document.documentElement).appendChild(style);
+              }
+              if (style.textContent !== css) style.textContent = css;
+              var watching = location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0;
+              if (window.LootBoxBridge && window.LootBoxBridge.setWatchMode) {
+                window.LootBoxBridge.setWatchMode(watching);
+              }
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
     }
 
     private fun openYoutubeSearch() {
@@ -435,7 +500,5 @@ class YoutubeFragment : Fragment() {
 
     companion object {
         private const val ARG_INITIAL_URL = "youtube_initial_url"
-        // Keep custom DOM/CSS injection off during the black-screen isolation test.
-        private const val ENABLE_YOUTUBE_CUSTOMIZATION = false
     }
 }
