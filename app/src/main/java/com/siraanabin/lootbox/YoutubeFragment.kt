@@ -23,6 +23,9 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.Toast
+import android.widget.TextView
+import android.widget.HorizontalScrollView
+import androidx.appcompat.app.AlertDialog
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
 
@@ -30,7 +33,7 @@ class YoutubeFragment : Fragment() {
     private var webView: WebView? = null
     private var progress: ProgressBar? = null
     private var searchField: EditText? = null
-    private var searchBarView: View? = null
+    private var topChromeView: View? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
@@ -40,50 +43,105 @@ class YoutubeFragment : Fragment() {
             setBackgroundColor(Color.rgb(11, 14, 19))
         }
 
-        // LootBox search stays at the top; YouTube's own logo/header is hidden in the page.
-        val searchBar = LinearLayout(ctx).apply {
+        // Native YouTube-style header and horizontally scrollable category chips.
+        val topChrome = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.rgb(15, 15, 15))
+        }
+        topChromeView = topChrome
+
+        val header = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            background = GradientDrawable().apply {
-                setColor(Color.rgb(30, 34, 43))
-                cornerRadius = dp(28).toFloat()
-            }
-            setPadding(dp(14), 0, dp(8), 0)
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)
-            ).apply { setMargins(dp(12), dp(8), dp(12), dp(8)) }
+            setPadding(dp(16), 0, dp(12), 0)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56))
         }
-        searchBarView = searchBar
-        val searchIcon = ImageButton(ctx).apply {
+        val logo = TextView(ctx).apply {
+            text = "▶"
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(255, 0, 0))
+                cornerRadius = dp(6).toFloat()
+            }
+        }
+        header.addView(logo, LinearLayout.LayoutParams(dp(30), dp(21)))
+        val brand = TextView(ctx).apply {
+            text = "YouTube"
+            setTextColor(Color.WHITE)
+            textSize = 21f
+            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            setPadding(dp(7), 0, 0, 0)
+        }
+        header.addView(brand, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val searchButton = ImageButton(ctx).apply {
             setImageResource(android.R.drawable.ic_menu_search)
             setColorFilter(Color.WHITE)
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
             contentDescription = "Search YouTube"
-            isFocusable = false
+            setOnClickListener { showSearchDialog() }
         }
-        searchBar.addView(searchIcon, LinearLayout.LayoutParams(dp(38), dp(44)))
-        val input = EditText(ctx).apply {
-            hint = "Search YouTube..."
-            setHintTextColor(Color.rgb(160, 166, 180))
-            setTextColor(Color.WHITE)
-            textSize = 16f
-            isSingleLine = true
-            imeOptions = EditorInfo.IME_ACTION_SEARCH
-            inputType = android.text.InputType.TYPE_CLASS_TEXT
-            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
-            setPadding(dp(8), 0, dp(4), 0)
+        header.addView(searchButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+        topChrome.addView(header)
+
+        val chipScroll = HorizontalScrollView(ctx).apply {
+            isHorizontalScrollBarEnabled = false
+            clipToPadding = false
+            setPadding(dp(12), dp(2), dp(12), dp(8))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48))
         }
-        searchField = input
-        searchBar.addView(input, LinearLayout.LayoutParams(0, dp(48), 1f))
-        val clear = ImageButton(ctx).apply {
-            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-            setColorFilter(Color.LTGRAY)
-            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
-            contentDescription = "Clear search"
-            setOnClickListener { input.text?.clear() }
+        val chipRow = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
-        searchBar.addView(clear, LinearLayout.LayoutParams(dp(40), dp(44)))
-        root.addView(searchBar)
+        fun makeChip(label: String, selected: Boolean, iconOnly: Boolean = false): TextView {
+            return TextView(ctx).apply {
+                text = label
+                textSize = if (iconOnly) 19f else 14f
+                setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                gravity = Gravity.CENTER
+                setTextColor(if (selected) Color.BLACK else Color.WHITE)
+                background = GradientDrawable().apply {
+                    setColor(if (selected) Color.WHITE else Color.rgb(39, 39, 39))
+                    cornerRadius = dp(10).toFloat()
+                }
+                setPadding(if (iconOnly) dp(13) else dp(18), 0, if (iconOnly) dp(13) else dp(18), 0)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(36)
+                ).apply { marginEnd = dp(8) }
+                minWidth = if (iconOnly) dp(44) else dp(54)
+            }
+        }
+        val explore = makeChip("◎", false, true).apply {
+            contentDescription = "Explore"
+            setOnClickListener { wvSafeLoad("https://m.youtube.com/feed/explore") }
+        }
+        chipRow.addView(explore)
+        val categories = listOf("All", "News", "Music", "User interface")
+        val chipViews = mutableListOf<TextView>()
+        categories.forEachIndexed { index, category ->
+            val chip = makeChip(category, index == 0)
+            chip.setOnClickListener {
+                chipViews.forEachIndexed { i, view ->
+                    val active = i == index
+                    view.setTextColor(if (active) Color.BLACK else Color.WHITE)
+                    view.background = GradientDrawable().apply {
+                        setColor(if (active) Color.WHITE else Color.rgb(39, 39, 39))
+                        cornerRadius = dp(10).toFloat()
+                    }
+                }
+                when (category) {
+                    "All" -> wv?.loadUrl("https://m.youtube.com/")
+                    else -> wv?.loadUrl("https://m.youtube.com/results?search_query=" + Uri.encode(category))
+                }
+            }
+            chipViews.add(chip)
+            chipRow.addView(chip)
+        }
+        chipScroll.addView(chipRow)
+        topChrome.addView(chipScroll)
+        root.addView(topChrome)
 
         val frame = FrameLayout(ctx)
         val p = ProgressBar(ctx, null, android.R.attr.progressBarStyleHorizontal).apply {
@@ -146,23 +204,33 @@ class YoutubeFragment : Fragment() {
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
 
-        fun runSearch() {
-            val query = input.text?.toString()?.trim().orEmpty()
-            if (query.isNotEmpty()) {
-                wv.loadUrl("https://m.youtube.com/results?search_query=" + Uri.encode(query))
-            }
-        }
-        searchIcon.setOnClickListener { runSearch() }
-        input.setOnEditorActionListener { _, actionId, event ->
-            val enter = event?.keyCode == KeyEvent.KEYCODE_ENTER
-            if (actionId == EditorInfo.IME_ACTION_SEARCH || enter) {
-                runSearch()
-                true
-            } else false
-        }
-
         if (state == null) wv.loadUrl("https://m.youtube.com/")
         return root
+    }
+
+    private fun showSearchDialog() {
+        val input = EditText(requireContext()).apply {
+            hint = "Search YouTube"
+            setSingleLine(true)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle("Search YouTube")
+            .setView(input)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Search") { _, _ ->
+                val query = input.text?.toString()?.trim().orEmpty()
+                if (query.isNotEmpty()) {
+                    webView?.loadUrl("https://m.youtube.com/results?search_query=" + Uri.encode(query))
+                }
+            }
+            .show()
+        searchField = input
+    }
+
+    private fun wvSafeLoad(url: String) {
+        webView?.loadUrl(url)
     }
 
     private fun injectYoutubeLayout(view: WebView) {
@@ -173,7 +241,7 @@ class YoutubeFragment : Fragment() {
               style.id = 'lootbox-youtube-style';
               style.textContent = [
                 /* Remove YouTube's own chrome and bottom tabs; LootBox provides search/navigation. */
-                'ytm-mobile-topbar-renderer, ytm-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-mini-guide-renderer, ytd-masthead, #masthead-container, ytd-mini-guide-renderer { display:none !important; }',
+                'ytm-mobile-topbar-renderer, ytm-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-mini-guide-renderer, ytd-masthead, #masthead-container, ytd-mini-guide-renderer, ytm-chip-cloud-renderer, ytm-chip-cloud-chip-renderer { display:none !important; }',
                 'ytm-reel-shelf-renderer, ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts] { display:none !important; }',
                 /* Watch page: keep the player flush to the top of the WebView, directly below LootBox search. */
                 'ytm-watch, ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container, ytm-watch #player { margin-top:0 !important; padding-top:0 !important; }',
@@ -255,7 +323,7 @@ class YoutubeFragment : Fragment() {
         @JavascriptInterface
         fun setWatchMode(isWatching: Boolean) {
             activity?.runOnUiThread {
-                searchBarView?.visibility = if (isWatching) View.GONE else View.VISIBLE
+                topChromeView?.visibility = if (isWatching) View.GONE else View.VISIBLE
             }
         }
 
@@ -293,7 +361,7 @@ class YoutubeFragment : Fragment() {
         webView = null
         progress = null
         searchField = null
-        searchBarView = null
+        topChromeView = null
         super.onDestroyView()
     }
 
