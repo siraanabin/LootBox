@@ -81,6 +81,7 @@ jobs:
       - name: Publish update manifest without GitHub API
         run: |
           CURRENT_CODE=$(python3 -c 'import json; print(json.load(open("version.json")).get("versionCode", 0))')
+          if [ "$CURRENT_CODE" -lt 1003 ]; then CURRENT_CODE=1003; fi
           if [ "${{ github.run_number }}" -le "$CURRENT_CODE" ]; then
             echo "Skipping stale manifest update: build ${{ github.run_number }} <= current $CURRENT_CODE"
             exit 0
