@@ -173,6 +173,10 @@ class YoutubeFragment : Fragment() {
                 /* Remove YouTube's own chrome and bottom tabs; LootBox provides search/navigation. */
                 'ytm-mobile-topbar-renderer, ytm-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-mini-guide-renderer, ytd-masthead, #masthead-container, ytd-mini-guide-renderer { display:none !important; }',
                 'ytm-reel-shelf-renderer, ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts] { display:none !important; }',
+                /* Watch page: keep the player flush to the top of the WebView, directly below LootBox search. */
+                'ytm-watch, ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container, ytm-watch #player { margin-top:0 !important; padding-top:0 !important; }',
+                'ytm-watch { min-height:0 !important; }',
+                'ytm-watch #player-container-id, ytm-watch #player-container { width:100% !important; max-width:100% !important; }',
                 /* Full-width, square-corner video thumbnails. */
                 'ytm-rich-item-renderer, ytm-video-with-context-renderer, ytd-rich-item-renderer { display:block !important; box-sizing:border-box !important; width:100vw !important; max-width:none !important; margin-left:calc((100% - 100vw)/2) !important; margin-right:calc((100% - 100vw)/2) !important; padding-left:0 !important; padding-right:0 !important; }',
                 'ytm-thumbnail, ytm-thumbnail a, ytm-thumbnail img, ytd-thumbnail, ytd-thumbnail a, ytd-thumbnail img, .thumbnail, .thumbnail img { border-radius:0 !important; }',
@@ -214,11 +218,27 @@ class YoutubeFragment : Fragment() {
                 info.appendChild(button);
               });
             }
-            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); }
+            function keepWatchPlayerAtTop() {
+              if (/\\/watch(?:\\?|$)/.test(location.pathname + location.search)) {
+                window.scrollTo(0, 0);
+                var watch = document.querySelector('ytm-watch');
+                if (watch) {
+                  watch.style.setProperty('margin-top', '0', 'important');
+                  watch.style.setProperty('padding-top', '0', 'important');
+                }
+              }
+            }
+            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); }
             applyLootBoxFeed();
             if (!window.__lootboxYoutubeObserver) {
               window.__lootboxYoutubeObserver = new MutationObserver(applyLootBoxFeed);
               window.__lootboxYoutubeObserver.observe(document.documentElement, { childList:true, subtree:true });
+            }
+            if (!window.__lootboxYoutubeUrlTimer) {
+              var lastUrl = location.href;
+              window.__lootboxYoutubeUrlTimer = setInterval(function() {
+                if (location.href !== lastUrl) { lastUrl = location.href; keepWatchPlayerAtTop(); }
+              }, 400);
             }
           })();
         """.trimIndent()
