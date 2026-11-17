@@ -291,6 +291,39 @@ class YoutubeFragment : Fragment() {
             }
         }
         auditHeader.addView(copyButton)
+        val rerunButton = TextView(ctx).apply {
+            text = "Re-run"
+            textSize = 13f
+            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(dp(10), dp(7), dp(10), dp(7))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(55, 65, 81))
+                cornerRadius = dp(8).toFloat()
+            }
+            setOnClickListener {
+                visibility = View.VISIBLE
+                auditReportPanel?.visibility = View.VISIBLE
+                auditReportText?.text = "Waiting 5 seconds for feed…"
+                webView?.evaluateJavascript("window.__lootboxRunDomAudit && window.__lootboxRunDomAudit(true);", null)
+            }
+        }
+        val hideButton = TextView(ctx).apply {
+            text = "Hide"
+            textSize = 13f
+            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(dp(10), dp(7), dp(10), dp(7))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(75, 85, 99))
+                cornerRadius = dp(8).toFloat()
+            }
+            setOnClickListener { auditReportPanel?.visibility = View.GONE }
+        }
+        auditHeader.addView(rerunButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(6) })
+        auditHeader.addView(hideButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { marginEnd = dp(6) })
         auditPanel.addView(auditHeader)
 
         val auditScroll = android.widget.ScrollView(ctx).apply {
@@ -437,123 +470,158 @@ class YoutubeFragment : Fragment() {
                 }
               }
             }
-            function debugDomAudit() {
+            function debugDomAudit(force) {
               var isWatchPage = location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0;
               var auditKey = location.href + '|' + (isWatchPage ? 'watch' : 'home');
-              if (window.__lootboxDomAuditLast === auditKey) return;
-              window.__lootboxDomAuditLast = auditKey;
-              setTimeout(function() {
-                if (location.href + '|' + ((location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0) ? 'watch' : 'home') !== auditKey) return;
+              if (force) {
+                if (window.__lootboxDomAuditTimer) clearTimeout(window.__lootboxDomAuditTimer);
+                window.__lootboxDomAuditTimer = null;
+                window.__lootboxDomAuditKey = null;
+                window.__lootboxDomAuditAttempt = 0;
+              }
+              if (window.__lootboxDomAuditKey === auditKey && window.__lootboxDomAuditTimer) return;
+              if (window.__lootboxDomAuditKey === auditKey && window.__lootboxDomAuditDone && !force) return;
+              window.__lootboxDomAuditKey = auditKey;
+              window.__lootboxDomAuditDone = false;
+              window.__lootboxDomAuditAttempt = 0;
+
+              function findThumbnail() {
                 var card = document.querySelector('ytm-rich-item-renderer, ytm-video-with-context-renderer');
-                if (isWatchPage && card && !card.closest('ytm-browse')) {
+                if (card && isWatchPage && !card.closest('ytm-browse')) {
                   card = document.querySelector('ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer') || card;
                 }
-                if (!card && isWatchPage) card = document.querySelector('ytm-watch') || document.querySelector('ytm-browse');
-                if (!card) {
+                if (card) return {element:card, method:'ytm-rich-item-renderer/ytm-video-with-context-renderer'};
+
+                var anchors = Array.from(document.querySelectorAll('a[href^="/watch"]'));
+                var watchAnchor = anchors.find(function(a) {
+                  return !!a.querySelector('img[src*="ytimg.com"], img[src*="i.ytimg.com"]');
+                });
+                if (watchAnchor) return {element:watchAnchor, method:'a[href^="/watch"] with ytimg thumbnail'};
+
+                var firstImage = document.querySelector('img[src*="ytimg.com"], img[src*="i.ytimg.com"]');
+                if (firstImage) return {element:firstImage, method:'img[src*="ytimg.com"]'};
+
+                var fallback = document.querySelector('ytm-media-item, yt-lockup-view-model, lockup-view-model');
+                if (fallback) return {element:fallback, method:'media/lockup fallback'};
+                return null;
+              }
+
+              function runAttempt() {
+                if (location.href + '|' + ((location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0) ? 'watch' : 'home') !== auditKey) return;
+                window.__lootboxDomAuditAttempt = (window.__lootboxDomAuditAttempt || 0) + 1;
+                var found = findThumbnail();
+                if (!found && window.__lootboxDomAuditAttempt < 4) {
+                  var waiting = 'PAGE: ' + (isWatchPage ? 'WATCH' : 'HOME') +
+                    '\nVideo card: NOT FOUND yet' +
+                    '\nRetry: ' + window.__lootboxDomAuditAttempt + '/3 (next check in 5 seconds)' +
+                    '\nURL: ' + location.href;
+                  if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport(waiting);
+                  window.__lootboxDomAuditTimer = setTimeout(runAttempt, 5000);
+                  return;
+                }
+                window.__lootboxDomAuditTimer = null;
+                window.__lootboxDomAuditDone = true;
+
+                var watches = Array.from(document.querySelectorAll('ytm-watch'));
+                var browses = Array.from(document.querySelectorAll('ytm-browse'));
+                var scrollTop = document.body ? (document.body.scrollTop || window.scrollY || 0) : (window.scrollY || 0);
+                var innerHeight = window.innerHeight || 0;
+
+                if (!found) {
+                  var htmlStart = document.body ? document.body.innerHTML.slice(0, 1500) : '(document.body missing)';
                   var missingReport = 'PAGE: ' + (isWatchPage ? 'WATCH' : 'HOME') +
-                    '\nVideo card: NOT FOUND' +
+                    '\nVideo card: NOT FOUND after 15 seconds' +
                     '\nURL: ' + location.href +
-                    '\nyt m-watch: ' + document.querySelectorAll('ytm-watch').length +
-                    '\nyt m-browse: ' + document.querySelectorAll('ytm-browse').length;
+                    '\nyt m-watch: ' + watches.length +
+                    '\nyt m-browse: ' + browses.length +
+                    '\nbody.scrollTop/window.scrollY: ' + scrollTop +
+                    '\nwindow.innerHeight: ' + innerHeight +
+                    '\n\nBODY INNERHTML (first 1500 chars):\n' + htmlStart;
                   console.log('LOOTBOX_DOM_AUDIT ' + missingReport);
                   if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport(missingReport);
                   return;
                 }
+
+                var thumb = found.element;
+                var thumbRect = thumb.getBoundingClientRect();
                 var chain = [];
-                var largest = null;
-                var node = card;
+                var node = thumb;
                 while (node && node.nodeType === 1) {
                   var cs = getComputedStyle(node);
-                  var siblings = [];
-                  var previousHeight = 0;
-                  var sibling = node.previousElementSibling;
-                  while (sibling) {
-                    var h = sibling.offsetHeight || 0;
-                    if (h > 20) {
-                      previousHeight += h;
-                      siblings.push({tagName:sibling.tagName, id:sibling.id || '', className:typeof sibling.className === 'string' ? sibling.className : '', offsetHeight:h});
-                    }
-                    sibling = sibling.previousElementSibling;
-                  }
-                  var padding = parseFloat(cs.paddingTop) || 0;
-                  var margin = parseFloat(cs.marginTop) || 0;
-                  var ownGap = padding + margin;
-                  var score = previousHeight + ownGap;
-                  var item = {
-                    tagName:node.tagName, id:node.id || '',
+                  chain.push({
+                    tagName:node.tagName,
+                    id:node.id || '',
                     className:typeof node.className === 'string' ? node.className : '',
-                    rectTop:Math.round(node.getBoundingClientRect().top * 10) / 10,
+                    offsetTop:node.offsetTop,
                     offsetHeight:node.offsetHeight,
-                    paddingTop:cs.paddingTop, marginTop:cs.marginTop,
-                    position:cs.position, precedingSiblingHeightTotal:previousHeight,
-                    precedingSiblingsOver20px:siblings, ownPaddingMargin:ownGap,
-                    gapScore:score
-                  };
-                  chain.push(item);
-                  if (!largest || score > largest.gapScore) largest = item;
+                    paddingTop:cs.paddingTop,
+                    marginTop:cs.marginTop,
+                    position:cs.position
+                  });
                   if (node === document.body) break;
                   node = node.parentElement;
                 }
-                var visibility = function(el) {
-                  var s = getComputedStyle(el);
-                  return {display:s.display, visibility:s.visibility, hidden:!!el.hidden};
+
+                var above = [];
+                Array.from(document.querySelectorAll('body *')).forEach(function(el) {
+                  if (el === thumb || thumb.contains(el) || el.contains(thumb)) return;
+                  var r = el.getBoundingClientRect();
+                  var h = el.offsetHeight || 0;
+                  if (h > 0 && r.bottom <= thumbRect.top + 1) {
+                    above.push({
+                      tagName:el.tagName,
+                      id:el.id || '',
+                      className:typeof el.className === 'string' ? el.className : '',
+                      height:h
+                    });
+                  }
+                });
+                above.sort(function(a,b) { return b.height - a.height; });
+                var topThree = above.slice(0,3);
+
+                var formatName = function(x) {
+                  return x.tagName + (x.id ? '#' + x.id : '') +
+                    (x.className ? '.' + x.className.trim().split(/\s+/).slice(0,2).join('.') : '');
                 };
-                var watches = Array.from(document.querySelectorAll('ytm-watch')).map(visibility);
-                var browses = Array.from(document.querySelectorAll('ytm-browse')).map(visibility);
+                var formatted = 'PAGE: ' + (isWatchPage ? 'WATCH' : 'HOME') +
+                  '\nVideo card: FOUND (' + found.method + ')' +
+                  '\nTagName: ' + thumb.tagName +
+                  '\nThumbnail rect.top: ' + (Math.round(thumbRect.top * 10) / 10) + 'px' +
+                  '\nbody.scrollTop/window.scrollY: ' + scrollTop +
+                  '\nwindow.innerHeight: ' + innerHeight +
+                  '\nyt m-watch: ' + watches.length + ' | ytm-browse: ' + browses.length +
+                  '\nURL: ' + location.href +
+                  '\n\nANCESTORS (thumbnail to body):\n' +
+                  chain.map(function(x,i) {
+                    return (i+1) + '. ' + formatName(x) + ' | offsetTop=' + x.offsetTop +
+                      ' | height=' + x.offsetHeight + ' | paddingTop=' + x.paddingTop +
+                      ' | marginTop=' + x.marginTop + ' | position=' + x.position;
+                  }).join('\n') +
+                  '\n\nTOP 3 ELEMENTS ABOVE THUMBNAIL (by height):\n' +
+                  (topThree.length ? topThree.map(function(x,i) {
+                    return (i+1) + '. ' + formatName(x) + ' | height=' + x.height + 'px';
+                  }).join('\n') : 'None');
                 var report = {
                   page:isWatchPage ? 'watch' : 'home',
                   url:location.href,
-                  startElement:{tagName:card.tagName, id:card.id || '', className:typeof card.className === 'string' ? card.className : ''},
-                  ancestorChain:chain,
-                  largestGapElement:largest,
-                  ytmWatchCount:watches.length, ytmWatchVisibility:watches,
-                  ytmBrowseCount:browses.length, ytmBrowseVisibility:browses
+                  selectorMethod:found.method,
+                  thumbnailTagName:thumb.tagName,
+                  thumbnailRectTop:thumbRect.top,
+                  bodyScrollTop:document.body ? document.body.scrollTop : 0,
+                  windowScrollY:window.scrollY,
+                  windowInnerHeight:innerHeight,
+                  ancestors:chain,
+                  topThreeAbove:topThree,
+                  ytmWatchCount:watches.length,
+                  ytmBrowseCount:browses.length
                 };
-                var shortReport = {
-                  page: report.page,
-                  url: report.url,
-                  largestGapElement: largest ? {
-                    name: largest.tagName + (largest.id ? '#' + largest.id : '') +
-                      (largest.className ? '.' + largest.className.trim().split(/\s+/).slice(0, 2).join('.') : ''),
-                    height: largest.offsetHeight,
-                    paddingTop: largest.paddingTop,
-                    marginTop: largest.marginTop,
-                    precedingSiblingHeight: largest.precedingSiblingHeightTotal,
-                    rectTop: largest.rectTop
-                  } : null,
-                  ancestorChain: chain.slice(0, 7).map(function(x) {
-                    return {
-                      name: x.tagName + (x.id ? '#' + x.id : '') +
-                        (x.className ? '.' + x.className.trim().split(/\s+/).slice(0, 2).join('.') : ''),
-                      height: x.offsetHeight,
-                      paddingTop: x.paddingTop,
-                      marginTop: x.marginTop,
-                      precedingSiblingHeight: x.precedingSiblingHeightTotal,
-                      rectTop: x.rectTop
-                    };
-                  }),
-                  ytmWatchCount: watches.length,
-                  ytmBrowseCount: browses.length
-                };
-                var formatted = 'PAGE: ' + (isWatchPage ? 'WATCH' : 'HOME') +
-                  '\nLargest gap element: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.name : 'not found') +
-                  '\nHeight: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.height + 'px' : '-') +
-                  '\nPadding top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.paddingTop : '-') +
-                  '\nMargin top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.marginTop : '-') +
-                  '\nPrevious siblings: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.precedingSiblingHeight + 'px' : '-') +
-                  '\nRect top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.rectTop + 'px' : '-') +
-                  '\n yt m-watch: ' + shortReport.ytmWatchCount + ' | ytm-browse: ' + shortReport.ytmBrowseCount +
-                  '\nURL: ' + location.href +
-                  '\n\nANCESTORS (nearest first):\n' +
-                  shortReport.ancestorChain.map(function(x, i) {
-                    return (i + 1) + '. ' + x.name + ' | h=' + x.height + 'px | padTop=' + x.paddingTop +
-                      ' | marginTop=' + x.marginTop + ' | prev=' + x.precedingSiblingHeight + 'px | top=' + x.rectTop + 'px';
-                  }).join('\n');
                 console.log('LOOTBOX_DOM_AUDIT ' + JSON.stringify(report));
                 if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport(formatted);
-              }, 1400);
+              }
+              window.__lootboxRunDomAudit = function(forceRun) { debugDomAudit(!!forceRun); };
+              window.__lootboxDomAuditTimer = setTimeout(runAttempt, 5000);
             }
-            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); debugDomAudit(); }
+            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); debugDomAudit(false); }
             applyLootBoxFeed();
             if (!window.__lootboxYoutubeObserver) {
               window.__lootboxYoutubeObserver = new MutationObserver(applyLootBoxFeed);
