@@ -38,24 +38,15 @@ object Updater {
                 when {
                     info == null -> if (!silent) toast(activity, "Could not check for updates")
                     isNewer(info) -> askUpdate(activity, info)
-                    else -> if (!silent) toast(activity, "You have the latest version")
+                    else -> if (!silent) toast(activity, "Latest check: installed \${BuildConfig.VERSION_NAME} (\${BuildConfig.VERSION_CODE}), server \${info.name} (\${info.code})")
                 }
             }
         }
     }
 
-    // Compare both fields: some older builds may have a mismatched versionCode/versionName.
-    private fun isNewer(info: Info): Boolean {
-        if (info.code > BuildConfig.VERSION_CODE) return true
-        val remote = info.name.split('.').map { it.toIntOrNull() ?: 0 }
-        val installed = BuildConfig.VERSION_NAME.split('.').map { it.toIntOrNull() ?: 0 }
-        for (i in 0 until maxOf(remote.size, installed.size)) {
-            val r = remote.getOrElse(i) { 0 }
-            val v = installed.getOrElse(i) { 0 }
-            if (r != v) return r > v
-        }
-        return false
-    }
+    // Android's integer versionCode is the authoritative update comparison.
+    private fun isNewer(info: Info): Boolean =
+        info.code > BuildConfig.VERSION_CODE
 
     private fun fetch(): Info? {
         // Bypass GitHub raw/CDN caches so the app always reads the newest release manifest.
