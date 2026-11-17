@@ -87,7 +87,6 @@ class BrowserActivity : AppCompatActivity() {
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
                 if (!url.isNullOrBlank()) {
                     address.setText(url)
-                    LinkStore.addHistory(this@BrowserActivity, url)
                 }
                 progress.visibility = View.VISIBLE
             }

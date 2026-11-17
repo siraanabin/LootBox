@@ -18,6 +18,8 @@ class LibraryFragment : Fragment() {
 
     private var _b: FragmentLibraryBinding? = null
     private val b get() = _b!!
+    private var selectedFilter = "All"
+    private var allFiles: List<DownloadItem> = emptyList()
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _b = FragmentLibraryBinding.inflate(inflater, container, false)
@@ -34,10 +36,36 @@ class LibraryFragment : Fragment() {
         b.list.layoutManager = GridLayoutManager(ctx, 2)
         b.list.adapter = adapter
 
+        fun choose(filter: String) {
+            selectedFilter = filter
+            listOf(b.filterAll, b.filterVideo, b.filterAudio, b.filterOther).forEach { chip ->
+                val active = chip.tag == filter
+                chip.isSelected = active
+                chip.setTextColor(ctx.getColor(if (active) android.R.color.white else R.color.text))
+                chip.setBackgroundResource(if (active) R.drawable.bg_button else R.drawable.bg_chip)
+            }
+            val filtered = when (filter) {
+                "Video" -> allFiles.filter { it.mime.startsWith("video/") }
+                "Audio" -> allFiles.filter { it.mime.startsWith("audio/") }
+                "Other" -> allFiles.filter { !it.mime.startsWith("video/") && !it.mime.startsWith("audio/") }
+                else -> allFiles
+            }
+            adapter.submitList(filtered)
+            b.emptyText.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+            b.emptyText.text = if (allFiles.isEmpty()) "Your downloaded files will appear here" else "No $filter files"
+        }
+        b.filterAll.tag = "All"
+        b.filterVideo.tag = "Video"
+        b.filterAudio.tag = "Audio"
+        b.filterOther.tag = "Other"
+        b.filterAll.setOnClickListener { choose("All") }
+        b.filterVideo.setOnClickListener { choose("Video") }
+        b.filterAudio.setOnClickListener { choose("Audio") }
+        b.filterOther.setOnClickListener { choose("Other") }
+        choose("All")
         DownloadStore.live.observe(viewLifecycleOwner) { list ->
-            val done = list.filter { it.status == Status.COMPLETED }
-            adapter.submitList(done)
-            b.emptyText.visibility = if (done.isEmpty()) View.VISIBLE else View.GONE
+            allFiles = list.filter { it.status == Status.COMPLETED }
+            choose(selectedFilter)
         }
     }
 

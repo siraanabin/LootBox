@@ -43,13 +43,13 @@ class YoutubeFragment : Fragment() {
         val ctx = requireContext()
         val root = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(11, 14, 19))
+            setBackgroundColor(androidx.core.content.ContextCompat.getColor(ctx, R.color.bg))
         }
 
         // Native YouTube-style header and horizontally scrollable category chips.
         val topChrome = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(15, 15, 15))
+            setBackgroundColor(androidx.core.content.ContextCompat.getColor(ctx, R.color.nav))
         }
         topChromeView = topChrome
 
@@ -72,7 +72,7 @@ class YoutubeFragment : Fragment() {
         header.addView(logo, LinearLayout.LayoutParams(dp(30), dp(21)))
         val brand = TextView(ctx).apply {
             text = "YouTube"
-            setTextColor(Color.WHITE)
+            setTextColor(androidx.core.content.ContextCompat.getColor(ctx, R.color.text))
             textSize = 21f
             setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
             setPadding(dp(7), 0, 0, 0)
@@ -80,7 +80,7 @@ class YoutubeFragment : Fragment() {
         header.addView(brand, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val searchButton = ImageButton(ctx).apply {
             setImageResource(android.R.drawable.ic_menu_search)
-            setColorFilter(Color.WHITE)
+            setColorFilter(androidx.core.content.ContextCompat.getColor(ctx, R.color.text))
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
             contentDescription = "Search YouTube"
             setOnClickListener { showSearchDialog() }
@@ -104,9 +104,9 @@ class YoutubeFragment : Fragment() {
                 textSize = if (iconOnly) 19f else 14f
                 setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                 gravity = Gravity.CENTER
-                setTextColor(if (selected) Color.BLACK else Color.WHITE)
+                setTextColor(if (selected) Color.WHITE else androidx.core.content.ContextCompat.getColor(ctx, R.color.text))
                 background = GradientDrawable().apply {
-                    setColor(if (selected) Color.WHITE else Color.rgb(39, 39, 39))
+                    setColor(if (selected) androidx.core.content.ContextCompat.getColor(ctx, R.color.nav_active) else androidx.core.content.ContextCompat.getColor(ctx, R.color.chip))
                     cornerRadius = dp(10).toFloat()
                 }
                 setPadding(if (iconOnly) dp(13) else dp(18), 0, if (iconOnly) dp(13) else dp(18), 0)
@@ -128,9 +128,9 @@ class YoutubeFragment : Fragment() {
             chip.setOnClickListener {
                 chipViews.forEachIndexed { i, view ->
                     val active = i == index
-                    view.setTextColor(if (active) Color.BLACK else Color.WHITE)
+                    view.setTextColor(if (active) Color.WHITE else androidx.core.content.ContextCompat.getColor(ctx, R.color.text))
                     view.background = GradientDrawable().apply {
-                        setColor(if (active) Color.WHITE else Color.rgb(39, 39, 39))
+                        setColor(if (active) androidx.core.content.ContextCompat.getColor(ctx, R.color.nav_active) else androidx.core.content.ContextCompat.getColor(ctx, R.color.chip))
                         cornerRadius = dp(10).toFloat()
                     }
                 }
@@ -150,7 +150,7 @@ class YoutubeFragment : Fragment() {
         val p = ProgressBar(ctx, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             progress = 0
-            progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(37, 99, 235))
+            progressTintList = android.content.res.ColorStateList.valueOf(androidx.core.content.ContextCompat.getColor(ctx, R.color.nav_active))
             indeterminateTintList = android.content.res.ColorStateList.valueOf(Color.rgb(37, 99, 235))
         }
         progress = p
