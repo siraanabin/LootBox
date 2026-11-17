@@ -2,6 +2,8 @@ package com.siraanabin.lootbox
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -38,6 +40,9 @@ class YoutubeFragment : Fragment() {
     private var fullScreenCustomView: View? = null
     private var fullScreenCallback: WebChromeClient.CustomViewCallback? = null
     private var previousSystemUiVisibility: Int = 0
+    private var auditReportText: TextView? = null
+    private var auditReportPanel: View? = null
+    private var latestAuditReport: String = ""
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
@@ -243,6 +248,81 @@ class YoutubeFragment : Fragment() {
             }
         }
         frame.addView(wv)
+
+        // Debug-only DOM audit overlay: stays inside the YouTube screen and can be copied.
+        val auditPanel = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(8), dp(12), dp(10))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(24, 29, 39))
+                cornerRadius = dp(12).toFloat()
+                setStroke(dp(1), Color.rgb(75, 85, 99))
+            }
+            elevation = dp(8).toFloat()
+            visibility = View.GONE
+        }
+        val auditHeader = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val auditTitle = TextView(ctx).apply {
+            text = "DOM GAP AUDIT"
+            textSize = 12f
+            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(147, 197, 253))
+        }
+        auditHeader.addView(auditTitle, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val copyButton = TextView(ctx).apply {
+            text = "Copy"
+            textSize = 13f
+            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(dp(14), dp(7), dp(14), dp(7))
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(37, 99, 235))
+                cornerRadius = dp(8).toFloat()
+            }
+            setOnClickListener {
+                val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("LootBox DOM audit", latestAuditReport))
+                text = "Copied"
+                postDelayed({ text = "Copy" }, 1200)
+            }
+        }
+        auditHeader.addView(copyButton)
+        auditPanel.addView(auditHeader)
+
+        val auditScroll = android.widget.ScrollView(ctx).apply {
+            isFillViewport = false
+            isVerticalScrollBarEnabled = true
+            setPadding(0, dp(6), 0, 0)
+        }
+        val auditText = TextView(ctx).apply {
+            text = "Waiting for Home feed DOM report…"
+            textSize = 11f
+            setTextColor(Color.rgb(229, 231, 235))
+            setTextIsSelectable(true)
+            setTextIsSelectable(true)
+            setPadding(0, 0, dp(4), dp(4))
+            typeface = android.graphics.Typeface.MONOSPACE
+        }
+        auditReportText = auditText
+        auditScroll.addView(auditText, android.widget.ScrollView.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        auditPanel.addView(auditScroll, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(190)
+        ))
+        auditReportPanel = auditPanel
+        frame.addView(auditPanel, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP
+        ).apply {
+            leftMargin = dp(8)
+            rightMargin = dp(8)
+            topMargin = dp(8)
+        })
+
         root.addView(frame, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
@@ -371,8 +451,13 @@ class YoutubeFragment : Fragment() {
                 }
                 if (!card && isWatchPage) card = document.querySelector('ytm-watch') || document.querySelector('ytm-browse');
                 if (!card) {
-                  console.log('LOOTBOX_DOM_AUDIT no video card found; page=' + (isWatchPage ? 'watch' : 'home'));
-                  if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport('DOM audit: video card not found');
+                  var missingReport = 'PAGE: ' + (isWatchPage ? 'WATCH' : 'HOME') +
+                    '\nVideo card: NOT FOUND' +
+                    '\nURL: ' + location.href +
+                    '\nyt m-watch: ' + document.querySelectorAll('ytm-watch').length +
+                    '\nyt m-browse: ' + document.querySelectorAll('ytm-browse').length;
+                  console.log('LOOTBOX_DOM_AUDIT ' + missingReport);
+                  if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport(missingReport);
                   return;
                 }
                 var chain = [];
@@ -425,10 +510,48 @@ class YoutubeFragment : Fragment() {
                   ytmWatchCount:watches.length, ytmWatchVisibility:watches,
                   ytmBrowseCount:browses.length, ytmBrowseVisibility:browses
                 };
+                var shortReport = {
+                  page: report.page,
+                  url: report.url,
+                  largestGapElement: largest ? {
+                    name: largest.tagName + (largest.id ? '#' + largest.id : '') +
+                      (largest.className ? '.' + largest.className.trim().split(/\\s+/).slice(0, 2).join('.') : ''),
+                    height: largest.offsetHeight,
+                    paddingTop: largest.paddingTop,
+                    marginTop: largest.marginTop,
+                    precedingSiblingHeight: largest.precedingSiblingHeightTotal,
+                    rectTop: largest.rectTop
+                  } : null,
+                  ancestorChain: chain.slice(0, 7).map(function(x) {
+                    return {
+                      name: x.tagName + (x.id ? '#' + x.id : '') +
+                        (x.className ? '.' + x.className.trim().split(/\\s+/).slice(0, 2).join('.') : ''),
+                      height: x.offsetHeight,
+                      paddingTop: x.paddingTop,
+                      marginTop: x.marginTop,
+                      precedingSiblingHeight: x.precedingSiblingHeightTotal,
+                      rectTop: x.rectTop
+                    };
+                  }),
+                  ytmWatchCount: watches.length,
+                  ytmBrowseCount: browses.length
+                };
+                var formatted = 'PAGE: ' + (isWatchPage ? 'WATCH' : 'HOME') +
+                  '\\nLargest gap element: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.name : 'not found') +
+                  '\\nHeight: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.height + 'px' : '-') +
+                  '\\nPadding top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.paddingTop : '-') +
+                  '\\nMargin top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.marginTop : '-') +
+                  '\\nPrevious siblings: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.precedingSiblingHeight + 'px' : '-') +
+                  '\\nRect top: ' + (shortReport.largestGapElement ? shortReport.largestGapElement.rectTop + 'px' : '-') +
+                  '\\n yt m-watch: ' + shortReport.ytmWatchCount + ' | ytm-browse: ' + shortReport.ytmBrowseCount +
+                  '\\nURL: ' + location.href +
+                  '\\n\\nANCESTORS (nearest first):\\n' +
+                  shortReport.ancestorChain.map(function(x, i) {
+                    return (i + 1) + '. ' + x.name + ' | h=' + x.height + 'px | padTop=' + x.paddingTop +
+                      ' | marginTop=' + x.marginTop + ' | prev=' + x.precedingSiblingHeight + 'px | top=' + x.rectTop + 'px';
+                  }).join('\\n');
                 console.log('LOOTBOX_DOM_AUDIT ' + JSON.stringify(report));
-                var target = largest ? largest.tagName + (largest.id ? '#' + largest.id : '') + ' ~' + Math.round(largest.gapScore) + 'px' : 'not determined';
-                var toastText = (isWatchPage ? 'Watch' : 'Home') + ' DOM audit: ' + target;
-                if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport(toastText);
+                if (window.LootBoxBridge && window.LootBoxBridge.debugReport) window.LootBoxBridge.debugReport(formatted);
               }, 1400);
             }
             function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); debugDomAudit(); }
@@ -458,11 +581,13 @@ class YoutubeFragment : Fragment() {
 
         @JavascriptInterface
         fun debugReport(message: String) {
-            val appContext = context?.applicationContext ?: return
-            Log.d("LootBoxDomAudit", "[TOAST] $message")
+            if (!isAdded) return
             activity?.runOnUiThread {
-                Toast.makeText(appContext, message.take(110), Toast.LENGTH_LONG).show()
+                latestAuditReport = message
+                auditReportText?.text = message
+                auditReportPanel?.visibility = View.VISIBLE
             }
+            Log.d("LootBoxDomAudit", message)
         }
 
         @JavascriptInterface
@@ -502,6 +627,9 @@ class YoutubeFragment : Fragment() {
         progress = null
         searchField = null
         topChromeView = null
+        auditReportText = null
+        auditReportPanel = null
+        latestAuditReport = ""
         super.onDestroyView()
     }
 
