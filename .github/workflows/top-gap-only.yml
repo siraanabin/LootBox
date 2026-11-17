@@ -47,7 +47,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: gradle assembleDebug --stacktrace -PverCode=${{ 1000 + github.run_number }}
+        run: gradle assembleDebug --stacktrace -PverCode=1001
 
       - name: Upload the single APK
         uses: actions/upload-artifact@v4
