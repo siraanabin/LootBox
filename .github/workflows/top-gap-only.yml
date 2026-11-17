@@ -1,4 +1,5 @@
 name: Top Gap Only APK
+# Branch-only test build; keep main and release untouched.
 
 on:
   push:
