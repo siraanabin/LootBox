@@ -22,8 +22,11 @@ class HomeContentFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val ctx = requireContext()
         val activity = requireActivity() as MainActivity
-        b.settingsBtn.setOnClickListener { startSettings() }
+        b.settingsBtn.setOnClickListener { activity.openSettings() }
         b.browserBtn.setOnClickListener { startActivity(Intent(ctx, BrowserActivity::class.java)) }
+        b.exploreBtn.setOnClickListener { activity.openTab(R.id.nav_explore) }
+        b.downloadsBtn.setOnClickListener { activity.openTab(R.id.nav_downloads) }
+        b.libraryBtn.setOnClickListener { activity.openTab(R.id.nav_library) }
 
         b.pasteBtn.setOnClickListener {
             val cm = ctx.getSystemService(ClipboardManager::class.java)
@@ -69,10 +72,6 @@ class HomeContentFragment : Fragment() {
                 b.latestPercent.text = if (last.status == Status.FAILED) "" else "$p%"
             }
         }
-    }
-
-    private fun startSettings() {
-        (requireActivity() as MainActivity).openTab(R.id.nav_settings)
     }
 
     private fun start(url: String, quality: String) {
