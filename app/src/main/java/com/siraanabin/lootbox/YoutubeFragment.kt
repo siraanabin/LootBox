@@ -405,7 +405,8 @@ class YoutubeFragment : Fragment() {
                 /* Watch page only: reset native YouTube top offsets and preserve the player layout. */
                 'ytm-watch, ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container { margin-top:0 !important; padding-top:0 !important; }',
                 'ytm-watch { min-height:0 !important; }',
-                'ytm-watch #player-container-id, ytm-watch #player-container { display:block !important; width:100% !important; max-width:100% !important; aspect-ratio:16/9 !important; }',
+                'ytm-watch #player-container-id { display:block !important; width:100% !important; max-width:100% !important; aspect-ratio:auto !important; }',
+                'ytm-watch #player-container { display:block !important; width:100% !important; max-width:100% !important; aspect-ratio:16/9 !important; }',
                 'ytm-watch #player-container-id video, ytm-watch #player-container video { max-width:100% !important; }',
                 /* Full-width, square-corner video thumbnails. */
                 'ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer, ytm-browse ytd-rich-item-renderer { display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; margin:0 0 10px 0 !important; padding:0 !important; }',
@@ -469,13 +470,25 @@ class YoutubeFragment : Fragment() {
                 window.LootBoxBridge.setWatchMode(isWatchPage);
               }
               if (isWatchPage) {
-                window.scrollTo(0, 0);
                 var watch = document.querySelector('ytm-watch');
                 if (watch) {
                   watch.style.setProperty('margin-top', '0', 'important');
                   watch.style.setProperty('padding-top', '0', 'important');
                 }
               }
+            }
+            function syncActivePageContainers() {
+              var isWatchPage = location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0;
+              var watch = document.querySelector('ytm-watch');
+              document.querySelectorAll('ytm-browse, ytm-search').forEach(function(el) {
+                if (isWatchPage && watch && !watch.contains(el)) {
+                  el.setAttribute('data-lootbox-stale-page-hidden', '1');
+                  el.style.setProperty('display', 'none', 'important');
+                } else if (!isWatchPage && el.getAttribute('data-lootbox-stale-page-hidden') === '1') {
+                  el.removeAttribute('data-lootbox-stale-page-hidden');
+                  el.style.removeProperty('display');
+                }
+              });
             }
             function debugDomAudit(force) {
               var isWatchPage = location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0;
@@ -659,7 +672,18 @@ class YoutubeFragment : Fragment() {
               window.__lootboxRunDomAudit = function(forceRun) { debugDomAudit(!!forceRun); };
               window.__lootboxDomAuditTimer = setTimeout(runAttempt,5000);
             }
-            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); debugDomAudit(false); }
+            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); syncActivePageContainers(); debugDomAudit(false); }
+            if (!window.__lootboxNavigateFinishBound) {
+              window.__lootboxNavigateFinishBound = true;
+              document.addEventListener('yt-navigate-finish', function() {
+                setTimeout(function() {
+                  keepWatchPlayerAtTop();
+                  syncActivePageContainers();
+                  var isWatchPage = location.pathname === '/watch' || location.pathname.indexOf('/watch/') === 0;
+                  if (isWatchPage) window.scrollTo(0, 0);
+                }, 0);
+              });
+            }
             applyLootBoxFeed();
             if (!window.__lootboxYoutubeObserver) {
               window.__lootboxYoutubeObserver = new MutationObserver(applyLootBoxFeed);
@@ -668,7 +692,7 @@ class YoutubeFragment : Fragment() {
             if (!window.__lootboxYoutubeUrlTimer) {
               var lastUrl = location.href;
               window.__lootboxYoutubeUrlTimer = setInterval(function() {
-                if (location.href !== lastUrl) { lastUrl = location.href; keepWatchPlayerAtTop(); debugDomAudit(false); }
+                if (location.href !== lastUrl) { lastUrl = location.href; keepWatchPlayerAtTop(); syncActivePageContainers(); debugDomAudit(false); }
               }, 400);
             }
           })();
