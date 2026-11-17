@@ -23,6 +23,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         b = ActivityMainBinding.inflate(layoutInflater)
         setContentView(b.root)
+        // Keep vector drawable colors intact: the YouTube play triangle must stay white.
         b.nav.itemIconTintList = null
         b.nav.itemTextColor = ColorStateList(
             arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
@@ -31,15 +32,13 @@ class MainActivity : AppCompatActivity() {
         b.nav.itemRippleColor = ColorStateList.valueOf(Color.TRANSPARENT)
         b.nav.setOnItemSelectedListener { item ->
             val fragment: Fragment = when (item.itemId) {
-                R.id.nav_explore -> YoutubeFragment()
+                R.id.nav_youtube -> YoutubeFragment()
                 R.id.nav_downloads -> DownloadsFragment()
                 R.id.nav_library -> LibraryFragment()
+                R.id.nav_settings -> SettingsFragment()
                 else -> HomeFragment()
             }
-            supportFragmentManager.beginTransaction()
-                .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
-                .replace(R.id.container, fragment)
-                .commit()
+            supportFragmentManager.beginTransaction().replace(R.id.container, fragment).commit()
             true
         }
         if (savedInstanceState == null) b.nav.selectedItemId = R.id.nav_home
@@ -65,13 +64,5 @@ class MainActivity : AppCompatActivity() {
 
     fun openTab(id: Int) {
         b.nav.selectedItemId = id
-    }
-
-    fun openSettings() {
-        supportFragmentManager.beginTransaction()
-            .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
-            .replace(R.id.container, SettingsFragment())
-            .addToBackStack("settings")
-            .commit()
     }
 }

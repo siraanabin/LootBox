@@ -24,7 +24,6 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.Toast
 import android.widget.TextView
-import android.widget.HorizontalScrollView
 import androidx.appcompat.app.AlertDialog
 import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
@@ -37,19 +36,20 @@ class YoutubeFragment : Fragment() {
     private var fullScreenCustomView: View? = null
     private var fullScreenCallback: WebChromeClient.CustomViewCallback? = null
     private var previousSystemUiVisibility: Int = 0
+    private var youtubeFallbackAttempted: Boolean = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
         val ctx = requireContext()
         val root = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(androidx.core.content.ContextCompat.getColor(ctx, R.color.bg))
+            setBackgroundColor(Color.rgb(11, 14, 19))
         }
 
         // Native YouTube-style header and horizontally scrollable category chips.
         val topChrome = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(androidx.core.content.ContextCompat.getColor(ctx, R.color.nav))
+            setBackgroundColor(Color.rgb(15, 15, 15))
         }
         topChromeView = topChrome
 
@@ -61,7 +61,7 @@ class YoutubeFragment : Fragment() {
         }
         val logo = TextView(ctx).apply {
             text = "▶"
-            textSize = 15f
+            textSize = 13f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             background = GradientDrawable().apply {
@@ -72,15 +72,16 @@ class YoutubeFragment : Fragment() {
         header.addView(logo, LinearLayout.LayoutParams(dp(30), dp(21)))
         val brand = TextView(ctx).apply {
             text = "YouTube"
-            setTextColor(androidx.core.content.ContextCompat.getColor(ctx, R.color.text))
-            textSize = 21f
+            setTextColor(Color.WHITE)
+            textSize = 22f
             setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-            setPadding(dp(7), 0, 0, 0)
+            letterSpacing = -0.04f
+            setPadding(dp(6), 0, 0, 0)
         }
         header.addView(brand, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val searchButton = ImageButton(ctx).apply {
             setImageResource(android.R.drawable.ic_menu_search)
-            setColorFilter(androidx.core.content.ContextCompat.getColor(ctx, R.color.text))
+            setColorFilter(Color.WHITE)
             background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
             contentDescription = "Search YouTube"
             setOnClickListener { showSearchDialog() }
@@ -88,69 +89,15 @@ class YoutubeFragment : Fragment() {
         header.addView(searchButton, LinearLayout.LayoutParams(dp(48), dp(48)))
         topChrome.addView(header)
 
-        val chipScroll = HorizontalScrollView(ctx).apply {
-            isHorizontalScrollBarEnabled = false
-            clipToPadding = false
-            setPadding(dp(12), dp(2), dp(12), dp(8))
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48))
-        }
-        val chipRow = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        fun makeChip(label: String, selected: Boolean, iconOnly: Boolean = false): TextView {
-            return TextView(ctx).apply {
-                text = label
-                textSize = if (iconOnly) 19f else 14f
-                setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-                gravity = Gravity.CENTER
-                setTextColor(if (selected) Color.WHITE else androidx.core.content.ContextCompat.getColor(ctx, R.color.text))
-                background = GradientDrawable().apply {
-                    setColor(if (selected) androidx.core.content.ContextCompat.getColor(ctx, R.color.nav_active) else androidx.core.content.ContextCompat.getColor(ctx, R.color.chip))
-                    cornerRadius = dp(10).toFloat()
-                }
-                setPadding(if (iconOnly) dp(13) else dp(18), 0, if (iconOnly) dp(13) else dp(18), 0)
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(36)
-                ).apply { marginEnd = dp(8) }
-                minWidth = if (iconOnly) dp(44) else dp(54)
-            }
-        }
-        val explore = makeChip("◎", false, true).apply {
-            contentDescription = "Explore"
-            setOnClickListener { wvSafeLoad("https://m.youtube.com/feed/explore") }
-        }
-        chipRow.addView(explore)
-        val categories = listOf("All", "News", "Music", "User interface")
-        val chipViews = mutableListOf<TextView>()
-        categories.forEachIndexed { index, category ->
-            val chip = makeChip(category, index == 0)
-            chip.setOnClickListener {
-                chipViews.forEachIndexed { i, view ->
-                    val active = i == index
-                    view.setTextColor(if (active) Color.WHITE else androidx.core.content.ContextCompat.getColor(ctx, R.color.text))
-                    view.background = GradientDrawable().apply {
-                        setColor(if (active) androidx.core.content.ContextCompat.getColor(ctx, R.color.nav_active) else androidx.core.content.ContextCompat.getColor(ctx, R.color.chip))
-                        cornerRadius = dp(10).toFloat()
-                    }
-                }
-                when (category) {
-                    "All" -> webView?.loadUrl("https://m.youtube.com/")
-                    else -> webView?.loadUrl("https://m.youtube.com/results?search_query=" + Uri.encode(category))
-                }
-            }
-            chipViews.add(chip)
-            chipRow.addView(chip)
-        }
-        chipScroll.addView(chipRow)
-        topChrome.addView(chipScroll)
+        // The native 48dp category strip was removed; keep only the header.
+
         root.addView(topChrome)
 
         val frame = FrameLayout(ctx)
         val p = ProgressBar(ctx, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             progress = 0
-            progressTintList = android.content.res.ColorStateList.valueOf(androidx.core.content.ContextCompat.getColor(ctx, R.color.nav_active))
+            progressTintList = android.content.res.ColorStateList.valueOf(Color.rgb(37, 99, 235))
             indeterminateTintList = android.content.res.ColorStateList.valueOf(Color.rgb(37, 99, 235))
         }
         progress = p
@@ -158,8 +105,10 @@ class YoutubeFragment : Fragment() {
 
         val wv = WebView(ctx).apply {
             setBackgroundColor(Color.rgb(11, 14, 19))
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            // Keep WebView on the system-managed rendering path; forcing a hardware layer
+            // can leave WebView content black on some Android GPU/driver combinations.
             settings.javaScriptEnabled = true
+            // Keep Android WebView's default User-Agent; modifying it can break YouTube rendering.
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             settings.javaScriptCanOpenWindowsAutomatically = false
@@ -167,6 +116,9 @@ class YoutubeFragment : Fragment() {
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.safeBrowsingEnabled = true
+            // YouTube needs first- and third-party cookies for consent and page sessions.
+            android.webkit.CookieManager.getInstance().setAcceptCookie(true)
+            android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             addJavascriptInterface(DownloadBridge(), "LootBoxBridge")
         }
         webView = wv
@@ -179,6 +131,8 @@ class YoutubeFragment : Fragment() {
                 val insideYoutube = host == "youtube.com" || host.endsWith(".youtube.com") ||
                     host == "youtu.be" || host.endsWith(".googlevideo.com") ||
                     host.endsWith(".ytimg.com") || host.endsWith(".google.com") ||
+                    host.endsWith(".googleapis.com") || host.endsWith(".gstatic.com") ||
+                    host.endsWith(".ggpht.com") || host.endsWith(".googleusercontent.com") ||
                     host.endsWith(".youtube-nocookie.com")
                 if (!insideYoutube && (request.url.scheme == "https" || request.url.scheme == "http")) {
                     runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(request.url.toString()))) }
@@ -187,7 +141,31 @@ class YoutubeFragment : Fragment() {
                 return !insideYoutube
             }
 
+            override fun onReceivedError(
+                view: WebView,
+                request: WebResourceRequest,
+                error: android.webkit.WebResourceError
+            ) {
+                super.onReceivedError(view, request, error)
+                if (request.isForMainFrame && !youtubeFallbackAttempted && isAdded) {
+                    youtubeFallbackAttempted = true
+                    view.post { view.loadUrl("https://www.youtube.com/") }
+                }
+            }
+
+            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                // Recover once if Android's WebView renderer crashes instead of leaving a black page.
+                if (isAdded && !youtubeFallbackAttempted) {
+                    youtubeFallbackAttempted = true
+                    view.post { view.loadUrl("https://www.youtube.com/") }
+                }
+                return true
+            }
+
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                if (url?.startsWith("https://m.youtube.com") == true || url?.startsWith("https://www.youtube.com") == true) {
+                    progress?.visibility = View.VISIBLE
+                }
                 progress?.visibility = View.VISIBLE
                 progress?.progress = 8
             }
@@ -241,7 +219,10 @@ class YoutubeFragment : Fragment() {
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
 
-        if (state == null) wv.loadUrl("https://m.youtube.com/")
+        if (state == null) {
+            youtubeFallbackAttempted = false
+            wv.loadUrl("https://www.youtube.com/")
+        }
         return root
     }
 
@@ -275,22 +256,18 @@ class YoutubeFragment : Fragment() {
     private fun injectYoutubeLayout(view: WebView) {
         val script = """
           (function() {
-            if (!document.getElementById('lootbox-youtube-style')) {
-              var style = document.createElement('style');
-              style.id = 'lootbox-youtube-style';
-              style.textContent = [
+            var lootboxStyleText = [
                 /* Remove YouTube's own chrome and bottom tabs; LootBox provides search/navigation. */
-                'ytm-mobile-topbar-renderer, ytm-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-mini-guide-renderer, ytd-masthead, #masthead-container, ytd-mini-guide-renderer, ytm-chip-cloud-renderer, ytm-chip-cloud-chip-renderer { display:none !important; }',
+                'ytm-mobile-topbar-renderer, ytm-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-mini-guide-renderer, .pivot-bar-wrapper, ytm-miniplayer, ytm-mealbar-promo-renderer, ytm-upsell-dialog-renderer, ytd-masthead, #masthead-container, ytd-mini-guide-renderer { display:none !important; }',
+                'ytm-app, #app, ytm-browse, body { padding-top:0 !important; padding-bottom:0 !important; margin-bottom:0 !important; }',
+                'ytm-feed-filter-chip-bar-renderer, ytm-chip-cloud-renderer { display:block !important; position:sticky !important; top:0 !important; z-index:5 !important; background:#0f0f0f !important; margin:0 !important; }',
+                'ytm-chip-cloud-chip-renderer { display:inline-block !important; }',
                 'ytm-reel-shelf-renderer, ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts] { display:none !important; }',
-                /* Watch page only: reset native YouTube top offsets and preserve the player layout. */
-                'ytm-watch, ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container { margin-top:0 !important; padding-top:0 !important; }',
-                'ytm-watch { min-height:0 !important; }',
-                'ytm-watch #player-container-id, ytm-watch #player-container { display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; height:auto !important; min-height:0 !important; max-height:none !important; aspect-ratio:16/9 !important; overflow:hidden !important; }',
-                'ytm-watch ytm-player, ytm-watch .player-container, ytm-watch #player, ytm-watch #movie_player { box-sizing:border-box !important; width:100% !important; max-width:100% !important; height:100% !important; min-height:0 !important; max-height:none !important; }',
-                'ytm-watch #player-container-id video, ytm-watch #player-container video, ytm-watch video { display:block !important; width:100% !important; max-width:100% !important; height:100% !important; object-fit:contain !important; }',
-                /* Collapse empty ad/reserved slots that can leave a large black gap below the video. */
-                'ytm-watch ytm-ad-slot-renderer, ytm-watch ytm-companion-slot, ytm-watch #player-ads, ytm-watch .video-ads, ytm-watch .ytp-ad-module, ytm-watch ytm-promoted-sparkles-web-renderer { display:none !important; height:0 !important; min-height:0 !important; max-height:0 !important; margin:0 !important; padding:0 !important; overflow:hidden !important; }',
-                'ytm-watch #below, ytm-watch #details, ytm-watch ytm-single-column-watch-next-results-renderer { margin-top:0 !important; padding-top:0 !important; }',
+                /* Watch page: player is pinned to the top; everything else scrolls under it. */
+                'ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch .player-container { position:fixed !important; top:0 !important; left:0 !important; right:0 !important; width:100% !important; max-width:100% !important; height:56.25vw !important; aspect-ratio:16/9 !important; margin:0 !important; padding:0 !important; z-index:2147483000 !important; background:#000 !important; display:block !important; }',
+                'ytm-watch ytm-player, ytm-watch #player, ytm-watch .html5-video-player { width:100% !important; height:100% !important; }',
+                'ytm-watch { margin-top:0 !important; padding-top:56.25vw !important; min-height:0 !important; }',
+                'ytm-watch #player-container-id video, ytm-watch #player-container video { width:100% !important; height:100% !important; object-fit:contain !important; }',
                 /* Full-width, square-corner video thumbnails. */
                 'ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer, ytm-browse ytd-rich-item-renderer { display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; margin:0 0 10px 0 !important; padding:0 !important; }',
                 'ytm-thumbnail, ytm-thumbnail a, ytm-thumbnail img, ytd-thumbnail, ytd-thumbnail a, ytd-thumbnail img, .thumbnail, .thumbnail img { border-radius:0 !important; }',
@@ -308,9 +285,19 @@ class YoutubeFragment : Fragment() {
 
                 '.lootbox-download { position:absolute !important; right:10px !important; top:50% !important; transform:translateY(-50%) !important; width:40px !important; height:40px !important; border:0 !important; border-radius:50% !important; background:#263bcb86 !important; color:#2dd4bf !important; display:flex !important; align-items:center !important; justify-content:center !important; z-index:999 !important; padding:0 !important; margin:0 !important; }',
                 '.lootbox-download svg { width:22px !important; height:22px !important; fill:none !important; stroke:#ffffff !important; stroke-width:2.2 !important; }'
-              ].join('');
-              document.head.appendChild(style);
+            ].join('');
+            function ensureLootBoxStyle() {
+              var target = document.head || document.documentElement;
+              if (!target) return;
+              var style = document.getElementById('lootbox-youtube-style');
+              if (!style) {
+                style = document.createElement('style');
+                style.id = 'lootbox-youtube-style';
+              }
+              if (style.textContent !== lootboxStyleText) style.textContent = lootboxStyleText;
+              if (style.parentNode !== target) target.appendChild(style);
             }
+            ensureLootBoxStyle();
             function hideShorts() {
               document.querySelectorAll('ytm-reel-shelf-renderer, ytm-shorts-lockup-view-model, ytm-reel-item-renderer, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts]').forEach(function(el) {
                 el.style.setProperty('display', 'none', 'important');
@@ -352,11 +339,11 @@ class YoutubeFragment : Fragment() {
                 var watch = document.querySelector('ytm-watch');
                 if (watch) {
                   watch.style.setProperty('margin-top', '0', 'important');
-                  watch.style.setProperty('padding-top', '0', 'important');
+                  watch.style.setProperty('padding-top', '56.25vw', 'important');
                 }
               }
             }
-            function applyLootBoxFeed() { hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); }
+            function applyLootBoxFeed() { ensureLootBoxStyle(); hideShorts(); addDownloadButtons(); keepWatchPlayerAtTop(); }
             applyLootBoxFeed();
             if (!window.__lootboxYoutubeObserver) {
               window.__lootboxYoutubeObserver = new MutationObserver(applyLootBoxFeed);
@@ -365,7 +352,7 @@ class YoutubeFragment : Fragment() {
             if (!window.__lootboxYoutubeUrlTimer) {
               var lastUrl = location.href;
               window.__lootboxYoutubeUrlTimer = setInterval(function() {
-                if (location.href !== lastUrl) { lastUrl = location.href; keepWatchPlayerAtTop(); }
+                if (location.href !== lastUrl) { lastUrl = location.href; applyLootBoxFeed(); }
               }, 400);
             }
           })();

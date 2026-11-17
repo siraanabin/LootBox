@@ -1,84 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/bg">
+    android:layout_height="match_parent">
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:paddingHorizontal="16dp"
-        android:paddingTop="18dp">
-        <LinearLayout
+        android:paddingHorizontal="10dp"
+        android:paddingTop="8dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="6dp"
+            android:text="Video Library"
+            android:textColor="@color/text"
+            android:textSize="19sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/recycleBtn"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="Recycle Bin" />
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Library"
-                    android:textColor="@color/text"
-                    android:textSize="25sp"
-                    android:textStyle="bold" />
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Your saved media in one place"
-                    android:textColor="@color/muted"
-                    android:textSize="13sp" />
-            </LinearLayout>
-            <TextView
-                android:id="@+id/recycleBtn"
-                android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:background="@drawable/bg_chip"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:paddingHorizontal="14dp"
-                android:text="Recycle Bin"
-                android:textColor="@color/nav_active"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-        <HorizontalScrollView
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginTop="14dp"
-            android:scrollbars="none">
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-                <TextView android:id="@+id/filterAll" style="@style/DownloadFilter" android:text="All" />
-                <TextView android:id="@+id/filterVideo" style="@style/DownloadFilter" android:text="Video" />
-                <TextView android:id="@+id/filterAudio" style="@style/DownloadFilter" android:text="Audio" />
-                <TextView android:id="@+id/filterOther" style="@style/DownloadFilter" android:text="Other" />
-            </LinearLayout>
-        </HorizontalScrollView>
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="10dp"
+            android:text="Your Files"
+            android:textColor="@color/text"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/list"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:clipToPadding="false"
-            android:paddingTop="8dp"
             android:paddingBottom="16dp" />
     </LinearLayout>
+
     <TextView
         android:id="@+id/emptyText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:text="Your downloaded files will appear here"
+        android:text="Finished downloads show up here"
         android:textColor="@color/muted"
         android:textSize="15sp" />
 </FrameLayout>

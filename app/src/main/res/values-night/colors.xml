@@ -1,14 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#111827</color>
-    <color name="card">#222B45</color>
-    <color name="field">#182238</color>
-    <color name="chip">#303A58</color>
-    <color name="text">#F4F5FF</color>
-    <color name="muted">#A8B2CC</color>
-    <color name="nav">#172139</color>
-    <color name="nav_active">#A78BFA</color>
-    <color name="nav_icon_highlight">#00000000</color>
-    <color name="danger">#FF7A8A</color>
-    <color name="danger_bg">#402536</color>
+    <color name="bg">#121317</color><color name="card">#1C1E26</color><color name="field">#2B2E3A</color><color name="chip">#3A3D4A</color><color name="text">#F2F4FA</color><color name="muted">#9AA0B4</color><color name="nav">#191B23</color><color name="nav_active">#2563EB</color><color name="nav_icon_highlight">#00000000</color><color name="danger">#F87171</color><color name="danger_bg">#3B1F24</color>
 </resources>
