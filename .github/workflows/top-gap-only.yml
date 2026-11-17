@@ -8,6 +8,7 @@ on:
     paths:
       - .github/workflows/top-gap-only.yml
       - app/src/main/java/com/siraanabin/lootbox/YoutubeFragment.kt
+      - app/src/main/java/com/siraanabin/lootbox/HomeFragment.kt
       - app/src/main/java/com/siraanabin/lootbox/Updater.kt
       - version.json
   workflow_dispatch:
