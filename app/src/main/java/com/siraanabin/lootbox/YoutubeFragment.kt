@@ -36,6 +36,7 @@ class YoutubeFragment : Fragment() {
     private var fullScreenCustomView: View? = null
     private var fullScreenCallback: WebChromeClient.CustomViewCallback? = null
     private var previousSystemUiVisibility: Int = 0
+    private var youtubeFallbackAttempted: Boolean = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreateView(inflater: android.view.LayoutInflater, container: ViewGroup?, state: Bundle?): View {
@@ -103,8 +104,13 @@ class YoutubeFragment : Fragment() {
 
         val wv = WebView(ctx).apply {
             setBackgroundColor(Color.rgb(11, 14, 19))
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            // Keep WebView on the system-managed rendering path; forcing a hardware layer
+            // can leave WebView content black on some Android GPU/driver combinations.
             settings.javaScriptEnabled = true
+            // YouTube can reject the Android WebView marker ("; wv") and render only its logo.
+            settings.userAgentString = settings.userAgentString
+                .replace("; wv", "")
+                .replace("Version/4.0 ", "")
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             settings.javaScriptCanOpenWindowsAutomatically = false
@@ -137,7 +143,31 @@ class YoutubeFragment : Fragment() {
                 return !insideYoutube
             }
 
+            override fun onReceivedError(
+                view: WebView,
+                request: WebResourceRequest,
+                error: android.webkit.WebResourceError
+            ) {
+                super.onReceivedError(view, request, error)
+                if (request.isForMainFrame && !youtubeFallbackAttempted && isAdded) {
+                    youtubeFallbackAttempted = true
+                    view.post { view.loadUrl("https://www.youtube.com/") }
+                }
+            }
+
+            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                // Recover once if Android's WebView renderer crashes instead of leaving a black page.
+                if (isAdded && !youtubeFallbackAttempted) {
+                    youtubeFallbackAttempted = true
+                    view.post { view.loadUrl("https://www.youtube.com/") }
+                }
+                return true
+            }
+
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                if (url?.startsWith("https://m.youtube.com") == true || url?.startsWith("https://www.youtube.com") == true) {
+                    progress?.visibility = View.VISIBLE
+                }
                 progress?.visibility = View.VISIBLE
                 progress?.progress = 8
             }
@@ -191,7 +221,10 @@ class YoutubeFragment : Fragment() {
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
 
-        if (state == null) wv.loadUrl("https://m.youtube.com/")
+        if (state == null) {
+            youtubeFallbackAttempted = false
+            wv.loadUrl("https://m.youtube.com/")
+        }
         return root
     }
 
