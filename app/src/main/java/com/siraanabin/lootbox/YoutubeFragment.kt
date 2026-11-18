@@ -59,7 +59,7 @@ class YoutubeFragment : Fragment() {
     private var fullScreenCallback: WebChromeClient.CustomViewCallback? = null
     private var previousSystemUiVisibility: Int = 0
     private var feedFallbackAttempted: Boolean = false
-    private var mode: Mode = Mode.HOME
+    @Volatile private var mode: Mode = Mode.HOME
     private var currentVideoId: String? = null
     private var miniRadiusPx: Float = 0f
 
@@ -376,6 +376,8 @@ class YoutubeFragment : Fragment() {
             watchWeb = w
             h.addView(w, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
+        // Stop any feed preview so two videos never play (and sound) at once.
+        feedWeb?.evaluateJavascript("document.querySelectorAll('video').forEach(function(v){try{v.pause()}catch(e){}})", null)
         if (currentVideoId != id) {
             currentVideoId = id
             w.loadUrl("https://m.youtube.com/watch?v=" + id)
@@ -483,7 +485,6 @@ class YoutubeFragment : Fragment() {
                 'ytm-mobile-topbar-renderer, ytm-header, ytm-pivot-bar-renderer, ytm-bottom-navigation-renderer, ytm-mini-guide-renderer, .pivot-bar-wrapper, ytm-miniplayer, ytm-mealbar-promo-renderer, ytm-upsell-dialog-renderer, ytd-masthead, #masthead-container, ytd-mini-guide-renderer { display:none !important; }',
                 'ytm-app, #app, ytm-browse, body { padding-top:0 !important; padding-bottom:0 !important; margin-bottom:0 !important; }',
                 'ytm-feed-filter-chip-bar-renderer, ytm-chip-cloud-renderer { display:block !important; position:sticky !important; top:0 !important; z-index:5 !important; background:#0f0f0f !important; margin:0 !important; }',
-                'ytm-chip-cloud-chip-renderer { display:inline-block !important; }',
                 'ytm-reel-shelf-renderer, ytm-reel-item-renderer, ytm-shorts-lockup-view-model, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts] { display:none !important; }',
                 /* Watch page: keep YouTube's in-flow player placeholder; the pinned player itself is fixed by script. */
                 'ytm-watch, ytm-watch #player-container-id, ytm-watch #player-container, ytm-watch ytm-player, ytm-watch .player-container { margin-top:0 !important; padding-top:0 !important; }',
@@ -660,6 +661,109 @@ class YoutubeFragment : Fragment() {
               if (lbWidthTimer) return;
               lbWidthTimer = setTimeout(function() { lbWidthTimer = null; fixWatchWidths(); setTimeout(lbDiag, 700); }, 350);
             }
+            function lbDownloadCurrent() {
+              var id = new URLSearchParams(location.search).get('v');
+              if (id && window.LootBoxBridge && window.LootBoxBridge.download) {
+                window.LootBoxBridge.download('https://www.youtube.com/watch?v=' + encodeURIComponent(id));
+              }
+            }
+            // Watch page: add a Download button to the action row (like / dislike / share / download).
+            function addWatchDownload() {
+              if (window.__lbRole !== 'watch') return;
+              if (location.pathname !== '/watch') return;
+              var share = document.querySelector('ytm-watch button[aria-label*="hare" i]');
+              if (!share) return;
+              var item = share, row = share.parentElement;
+              while (row && row !== document.body && row.querySelectorAll('button').length < 3) {
+                item = row;
+                row = row.parentElement;
+              }
+              if (!row || row === document.body) return;
+              if (row.querySelector('button[aria-label*="ownload" i]:not(.lootbox-download):not(#lb-watch-dl)')) return;
+              var old = document.getElementById('lb-watch-dl');
+              if (old && old.parentElement === row) return;
+              if (old) old.remove();
+              var btn = document.createElement('button');
+              btn.id = 'lb-watch-dl';
+              btn.type = 'button';
+              btn.setAttribute('aria-label', 'Download video');
+              btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:48px;height:48px;margin:0 2px;padding:0;border:0;background:transparent;color:#fff;';
+              btn.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" style="fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M12 3v12m-5-5 5 5 5-5M4 20h16"/></svg>';
+              btn.addEventListener('click', function(e) {
+                e.preventDefault(); e.stopPropagation();
+                lbDownloadCurrent();
+              });
+              row.insertBefore(btn, item.nextSibling);
+            }
+            // Same, equal spacing for the category chips (All, Natok, News ...).
+            function fixChips() {
+              var chips = document.querySelectorAll('ytm-chip-cloud-chip-renderer');
+              if (!chips.length) return;
+              var last = chips[chips.length - 1];
+              var host = chips[0].parentElement;
+              while (host && !host.contains(last) && host.parentElement) host = host.parentElement;
+              if (!host) return;
+              host.style.setProperty('display', 'flex', 'important');
+              host.style.setProperty('flex-wrap', 'nowrap', 'important');
+              host.style.setProperty('justify-content', 'flex-start', 'important');
+              host.style.setProperty('gap', '12px', 'important');
+              host.style.setProperty('padding', '0 12px', 'important');
+              host.style.setProperty('margin', '0', 'important');
+              // If an outer element scrolls (not the host), make the host as wide as its chips so the
+              // right-end gap (same 12px) is also part of the scroll area.
+              var ox = getComputedStyle(host).overflowX;
+              if (ox !== 'auto' && ox !== 'scroll') {
+                host.style.setProperty('width', 'max-content', 'important');
+                host.style.setProperty('min-width', '100%', 'important');
+                host.style.setProperty('box-sizing', 'border-box', 'important');
+              }
+              for (var i = 0; i < host.children.length; i++) {
+                var c = host.children[i];
+                var empty = !c.textContent.trim() && !c.querySelector('svg, img, yt-icon');
+                if (empty) { c.style.setProperty('display', 'none', 'important'); continue; }
+                c.style.setProperty('flex', '0 0 auto', 'important');
+                c.style.setProperty('margin', '0', 'important');
+              }
+              for (var j = 0; j < chips.length; j++) {
+                chips[j].style.setProperty('margin', '0', 'important');
+                chips[j].style.setProperty('flex', '0 0 auto', 'important');
+              }
+            }
+            // Videos start with sound on (feed previews start muted by default).
+            function autoUnmute() {
+              if (!window.LootBoxBridge || !window.LootBoxBridge.canUnmute) return;
+              var allowed = false;
+              try { allowed = window.LootBoxBridge.canUnmute(window.__lbRole); } catch (e) { return; }
+              if (!allowed) return;
+              var vids = document.querySelectorAll('video');
+              for (var i = 0; i < vids.length; i++) {
+                (function(v) {
+                  if (v.paused || v.__lbSrc === v.currentSrc) return;
+                  if (v.muted || v.volume === 0) {
+                    v.__lbSrc = v.currentSrc;
+                    var b = document.querySelector('button[aria-label*="nmute" i]');
+                    if (b) b.click();
+                    setTimeout(function() {
+                      if (v.muted) v.muted = false;
+                      if (v.volume === 0) v.volume = 1;
+                    }, 250);
+                  } else {
+                    v.__lbSrc = v.currentSrc;
+                  }
+                })(vids[i]);
+              }
+            }
+            if (!window.__lbUnmuteTimer) window.__lbUnmuteTimer = setInterval(autoUnmute, 800);
+            if (!window.__lbDlHook) {
+              window.__lbDlHook = true;
+              document.addEventListener('click', function(e) {
+                if (window.__lbRole !== 'watch') return;
+                var b = e.target && e.target.closest ? e.target.closest('button[aria-label*="ownload" i]') : null;
+                if (!b || b.id === 'lb-watch-dl' || b.classList.contains('lootbox-download')) return;
+                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                lbDownloadCurrent();
+              }, true);
+            }
             function fixFeedGap() {
               if (location.pathname !== '/' || window.scrollY > 2) return;
               var cards = document.querySelectorAll('ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer');
@@ -681,7 +785,7 @@ class YoutubeFragment : Fragment() {
                 host.style.setProperty('margin-top', next + 'px', 'important');
               }
             }
-            function applyLootBoxFeed() { ensureLootBoxStyle(); hideShorts(); addDownloadButtons(); if (window.__lbRole === 'watch') { keepWatchPlayerAtTop(); scheduleFixWidths(); } else { fixFeedGap(); } }
+            function applyLootBoxFeed() { ensureLootBoxStyle(); hideShorts(); addDownloadButtons(); if (window.__lbRole === 'watch') { keepWatchPlayerAtTop(); scheduleFixWidths(); addWatchDownload(); } else { fixFeedGap(); fixChips(); } }
             applyLootBoxFeed();
             if (!window.__lootboxYoutubeObserver) {
               window.__lootboxYoutubeObserver = new MutationObserver(applyLootBoxFeed);
@@ -719,6 +823,10 @@ class YoutubeFragment : Fragment() {
         fun openVideo(id: String) {
             activity?.runOnUiThread { this@YoutubeFragment.openVideo(id) }
         }
+
+        /** The watch video may always un-mute itself; feed previews only while no video is open. */
+        @JavascriptInterface
+        fun canUnmute(role: String): Boolean = role == "watch" || mode == Mode.HOME
 
         @JavascriptInterface
         fun download(url: String) {

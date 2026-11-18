@@ -3,7 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// GitHub Actions passes -PverCode=<run number>, so every build gets a higher version automatically.
+// GitHub Actions passes -PverCode=10000+<run number>, so every build is newer than legacy 1xxx builds.
 val verCode = (project.findProperty("verCode") as String?)?.toIntOrNull() ?: 1
 
 android {
@@ -27,7 +27,7 @@ android {
     signingConfigs {
         val ks = System.getenv("KEYSTORE_FILE")
         if (ks != null) {
-            getByName("debug") {
+            create("release") {
                 storeFile = file(ks)
                 storePassword = System.getenv("KEYSTORE_PASSWORD")
                 keyAlias = System.getenv("KEY_ALIAS")
@@ -39,6 +39,9 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (System.getenv("KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
