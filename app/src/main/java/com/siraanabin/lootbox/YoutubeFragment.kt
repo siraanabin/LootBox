@@ -80,7 +80,7 @@ class YoutubeFragment : Fragment() {
         val header = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), 0, dp(12), 0)
+            setPadding(dp(12), 0, dp(12), 0)
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48))
         }
         val logo = TextView(ctx).apply {
@@ -102,15 +102,26 @@ class YoutubeFragment : Fragment() {
             letterSpacing = -0.04f
             setPadding(dp(6), 0, 0, 0)
         }
-        header.addView(brand, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val searchButton = ImageButton(ctx).apply {
-            setImageResource(android.R.drawable.ic_menu_search)
-            setColorFilter(Color.WHITE)
-            background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+        header.addView(brand, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        // Search pill (like the YouTube app): tap anywhere on it to search.
+        val pill = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            setPadding(dp(14), 0, dp(14), 0)
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(39, 39, 39))
+                cornerRadius = dp(20).toFloat()
+            }
             contentDescription = "Search YouTube"
+            isClickable = true
             setOnClickListener { openSearch() }
         }
-        header.addView(searchButton, LinearLayout.LayoutParams(dp(44), dp(44)))
+        val searchIcon = android.widget.ImageView(ctx).apply {
+            setImageResource(android.R.drawable.ic_menu_search)
+            setColorFilter(Color.WHITE)
+        }
+        pill.addView(searchIcon, LinearLayout.LayoutParams(dp(22), dp(22)))
+        header.addView(pill, LinearLayout.LayoutParams(0, dp(38), 1f).apply { setMargins(dp(14), 0, 0, 0) })
         headerRow = header
         topChrome.addView(header)
 
@@ -513,7 +524,7 @@ class YoutubeFragment : Fragment() {
                 'ytm-thumbnail, ytm-thumbnail a, .video-thumbnail-container-large, .video-thumbnail-container-compact { display:block !important; width:100% !important; aspect-ratio:16/9 !important; overflow:hidden !important; background:transparent !important; padding:0 !important; margin:0 !important; }',
                 'ytm-thumbnail img, ytm-thumbnail .ytCoreImageHost, ytm-thumbnail yt-core-image img { width:100% !important; height:100% !important; object-fit:cover !important; object-position:center !important; }',
 
-                '.lootbox-download { position:absolute !important; right:10px !important; top:50% !important; transform:translateY(-50%) !important; width:40px !important; height:40px !important; border:0 !important; border-radius:50% !important; background:#263bcb86 !important; color:#2dd4bf !important; display:flex !important; align-items:center !important; justify-content:center !important; z-index:999 !important; padding:0 !important; margin:0 !important; }',
+                '.lootbox-download { position:absolute !important; right:10px !important; bottom:6px !important; top:auto !important; transform:none !important; width:40px !important; height:40px !important; border:0 !important; border-radius:0 !important; background:transparent !important; padding:0 !important; margin:0 !important; display:flex !important; align-items:center !important; justify-content:center !important; z-index:20 !important; }',
                 '.lootbox-download svg { width:22px !important; height:22px !important; fill:none !important; stroke:#ffffff !important; stroke-width:2.2 !important; }'
             ].join('');
             function ensureLootBoxStyle() {
@@ -536,18 +547,18 @@ class YoutubeFragment : Fragment() {
             }
             function addDownloadButtons() {
               document.querySelectorAll('ytm-rich-item-renderer, ytm-video-with-context-renderer, ytd-rich-item-renderer').forEach(function(card) {
+                if (card.querySelector('.lootbox-download')) return;
+                if (card.parentElement && card.parentElement.closest('.lb-has-dl')) return;
                 var link = card.querySelector('a[href*="/watch?v="], a[href^="/watch"]');
-                if (!link || card.querySelector('.lootbox-download')) return;
+                if (!link) return;
                 var parsed;
                 try { parsed = new URL(link.href, location.href); } catch (e) { return; }
                 var videoId = parsed.searchParams.get('v');
                 if (!videoId) return;
-                // Put the button only inside the text block. Never pad a container that holds the thumbnail,
-                // otherwise the thumbnail shrinks and a black strip appears on the right.
-                var info = card.querySelector('.media-item-info, .details, #details, .media-channel, ytm-video-meta-block');
-                if (!info || info.querySelector('ytm-thumbnail')) return;
-                info.style.setProperty('position', 'relative');
-                info.style.setProperty('padding-right', '60px');
+                // The button floats at the bottom-right of the card (under the three-dot menu); nothing is padded,
+                // so thumbnails keep their full width.
+                card.classList.add('lb-has-dl');
+                card.style.setProperty('position', 'relative');
                 var button = document.createElement('button');
                 button.className = 'lootbox-download';
                 button.type = 'button';
@@ -560,7 +571,7 @@ class YoutubeFragment : Fragment() {
                     window.LootBoxBridge.download('https://www.youtube.com/watch?v=' + encodeURIComponent(videoId));
                   }
                 });
-                info.appendChild(button);
+                card.appendChild(button);
               });
             }
             function clearPins() {
@@ -744,8 +755,8 @@ class YoutubeFragment : Fragment() {
               host.style.setProperty('display', 'flex', 'important');
               host.style.setProperty('flex-wrap', 'nowrap', 'important');
               host.style.setProperty('justify-content', 'flex-start', 'important');
-              host.style.setProperty('gap', '12px', 'important');
-              host.style.setProperty('padding', '0 8px', 'important');
+              host.style.setProperty('gap', '8px', 'important');
+              host.style.setProperty('padding', '0 4px', 'important');
               host.style.setProperty('margin', '0', 'important');
               var ox = getComputedStyle(host).overflowX;
               if (ox !== 'auto' && ox !== 'scroll') {
@@ -782,7 +793,7 @@ class YoutubeFragment : Fragment() {
               if (first && !scrolled && window.scrollY < 2 && !host.hasAttribute('data-lb-done')) {
                 var fr = first.getBoundingClientRect();
                 if (fr.width > 0 && fr.left >= 0 && fr.left < 90) {
-                  if (fr.left > 11) host.style.setProperty('margin-left', (-(fr.left - 8)) + 'px', 'important');
+                  if (fr.left > 7) host.style.setProperty('margin-left', (-(fr.left - 4)) + 'px', 'important');
                   if (fr.top > 4 && fr.top < 60) host.style.setProperty('margin-top', (-(fr.top - 2)) + 'px', 'important');
                   host.setAttribute('data-lb-done', '1');
                 }

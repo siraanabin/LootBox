@@ -4,7 +4,7 @@ plugins {
 }
 
 // GitHub Actions passes -PverCode=<run number>, so every build gets a higher version automatically.
-val verCode = (project.findProperty("verCode") as String?)?.toIntOrNull() ?: 1035
+val verCode = (project.findProperty("verCode") as String?)?.toIntOrNull() ?: 1
 
 android {
     namespace = "com.siraanabin.lootbox"
