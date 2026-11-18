@@ -37,6 +37,13 @@ android {
     }
 
     buildTypes {
+        // Keep the APK output path as app-debug.apk for the existing workflow,
+        // but sign it with the same persistent key used by the installed app.
+        debug {
+            if (System.getenv("KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
         release {
             isMinifyEnabled = false
             if (System.getenv("KEYSTORE_FILE") != null) {
