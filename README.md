@@ -54,10 +54,11 @@ app/src/main/res/                    layouts, colors (light + night), icons, log
 - Quality choice before each YouTube / Facebook / Instagram download (default in Settings).
 - Optional playlist download, cookies.txt import for private videos, auto retry on network errors.
 
-## GitHub Actions setup
-1. Upload the contents of this ZIP to the root of the `siraanabin/LootBox` repository on the `main` branch (do not upload the enclosing folder).
-2. In GitHub: Settings -> Secrets and variables -> Actions, add these repository secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
-3. `KEYSTORE_BASE64` must be the Base64 text of the same keystore that signed the already-installed app. Keep the keystore and passwords private; never commit them.
-4. Each push to `main` builds a signed APK, publishes a GitHub Release, and updates `version.json` for the in-app updater.
 
-The version baseline in this package is 3.1034 (versionCode 1034); the first build after upload will be 3.1035. The build will fail until all four signing secrets are configured.
+## GitHub Actions setup
+- Upload/extract this ZIP's contents into the repository root on `main`.
+- Add repository Actions secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
+- `KEYSTORE_BASE64` must be the Base64 encoding of the exact original signing keystore.
+- The starting manifest is 3.1034; the next successful build will be 3.1035.
+- Each push builds an APK, publishes a GitHub Release, and updates `version.json`.
+- Never commit the keystore or passwords. Without the original signing key, existing installs cannot be updated in place.

@@ -552,7 +552,7 @@ class YoutubeFragment : Fragment() {
                 button.className = 'lootbox-download';
                 button.type = 'button';
                 button.setAttribute('aria-label', 'Download video');
-                button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 20h16"/></svg>';
+                button.appendChild(lbSvgDownload('22'));
                 button.addEventListener('click', function(event) {
                   event.preventDefault();
                   event.stopPropagation();
@@ -663,6 +663,19 @@ class YoutubeFragment : Fragment() {
               if (lbWidthTimer) return;
               lbWidthTimer = setTimeout(function() { lbWidthTimer = null; fixWatchWidths(); setTimeout(lbDiag, 700); }, 350);
             }
+            function lbSvgDownload(size) {
+              var ns = 'http://www.w3.org/2000/svg';
+              var svg = document.createElementNS(ns, 'svg');
+              svg.setAttribute('viewBox', '0 0 24 24');
+              svg.setAttribute('width', size);
+              svg.setAttribute('height', size);
+              svg.setAttribute('aria-hidden', 'true');
+              svg.style.cssText = 'fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round';
+              var path = document.createElementNS(ns, 'path');
+              path.setAttribute('d', 'M12 3v12m-5-5 5 5 5-5M4 20h16');
+              svg.appendChild(path);
+              return svg;
+            }
             function lbDownloadCurrent() {
               var id = new URLSearchParams(location.search).get('v');
               if (id && window.LootBoxBridge && window.LootBoxBridge.download) {
@@ -680,7 +693,7 @@ class YoutubeFragment : Fragment() {
               } else {
                 btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:48px;height:48px;margin:0 2px;padding:0;border:0;background:transparent;';
               }
-              btn.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" style="fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M12 3v12m-5-5 5 5 5-5M4 20h16"/></svg>';
+              btn.appendChild(lbSvgDownload('26'));
               btn.addEventListener('click', function(e) {
                 e.preventDefault(); e.stopPropagation();
                 lbDownloadCurrent();
@@ -763,26 +776,15 @@ class YoutubeFragment : Fragment() {
                 chips[j].style.setProperty('flex', '0 0 auto', 'important');
                 if (!first && chips[j].getBoundingClientRect().width > 0) first = chips[j];
               }
-              // Measured correction: if the first chip still starts far from the edge, pull the row left.
+              // One-time measured correction (never repeated, so the row cannot drift).
               var scrolled = false, p = host;
               for (var k = 0; k < 6 && p; k++) { if (p.scrollLeft > 0) scrolled = true; p = p.parentElement; }
-              if (first && !scrolled) {
-                var left = first.getBoundingClientRect().left;
-                if (left > 11) {
-                  var cur = parseFloat(host.getAttribute('data-lb-shift') || '0');
-                  var next = cur - (left - 8);
-                  host.setAttribute('data-lb-shift', String(next));
-                  host.style.setProperty('margin-left', next + 'px', 'important');
-                }
-              }
-              // Vertical gap between the header and the chips: keep the first chip about 2px from the top.
-              if (first && window.scrollY < 2) {
-                var topv = first.getBoundingClientRect().top;
-                if (topv > 4) {
-                  var curY = parseFloat(host.getAttribute('data-lb-shifty') || '0');
-                  var nextY = curY - (topv - 2);
-                  host.setAttribute('data-lb-shifty', String(nextY));
-                  host.style.setProperty('margin-top', nextY + 'px', 'important');
+              if (first && !scrolled && window.scrollY < 2 && !host.hasAttribute('data-lb-done')) {
+                var fr = first.getBoundingClientRect();
+                if (fr.width > 0 && fr.left >= 0 && fr.left < 90) {
+                  if (fr.left > 11) host.style.setProperty('margin-left', (-(fr.left - 8)) + 'px', 'important');
+                  if (fr.top > 4 && fr.top < 60) host.style.setProperty('margin-top', (-(fr.top - 2)) + 'px', 'important');
+                  host.setAttribute('data-lb-done', '1');
                 }
               }
             }
@@ -841,7 +843,7 @@ class YoutubeFragment : Fragment() {
                 })(vids[i]);
               }
             }
-            if (!window.__lbUnmuteTimer) window.__lbUnmuteTimer = setInterval(autoUnmute, 800);
+            if (!window.__lbUnmuteTimer) window.__lbUnmuteTimer = setInterval(function() { lbSafe(autoUnmute); }, 800);
             if (!window.__lbDlHook) {
               window.__lbDlHook = true;
               document.addEventListener('click', function(e) {
@@ -873,7 +875,15 @@ class YoutubeFragment : Fragment() {
                 host.style.setProperty('margin-top', next + 'px', 'important');
               }
             }
-            function applyLootBoxFeed() { ensureLootBoxStyle(); hideShorts(); addDownloadButtons(); if (window.__lbRole === 'watch') { keepWatchPlayerAtTop(); scheduleFixWidths(); addWatchDownload(); } else { fixFeedGap(); fixChips(); } }
+            function lbSafe(f) { try { f(); } catch (e) {} }
+            function applyLootBoxFeed() {
+              lbSafe(ensureLootBoxStyle); lbSafe(hideShorts); lbSafe(addDownloadButtons);
+              if (window.__lbRole === 'watch') {
+                lbSafe(keepWatchPlayerAtTop); lbSafe(scheduleFixWidths); lbSafe(addWatchDownload);
+              } else {
+                lbSafe(fixFeedGap); lbSafe(fixChips);
+              }
+            }
             applyLootBoxFeed();
             if (!window.__lootboxYoutubeObserver) {
               window.__lootboxYoutubeObserver = new MutationObserver(applyLootBoxFeed);

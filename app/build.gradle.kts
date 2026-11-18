@@ -4,7 +4,7 @@ plugins {
 }
 
 // GitHub Actions passes -PverCode=<run number>, so every build gets a higher version automatically.
-val verCode = (project.findProperty("verCode") as String?)?.toIntOrNull() ?: 1
+val verCode = (project.findProperty("verCode") as String?)?.toIntOrNull() ?: 1035
 
 android {
     namespace = "com.siraanabin.lootbox"
@@ -37,12 +37,6 @@ android {
     }
 
     buildTypes {
-        debug {
-            // GitHub Actions signs debug APKs with the same persistent key as the installed app.
-            if (System.getenv("KEYSTORE_FILE") != null) {
-                signingConfig = signingConfigs.getByName("debug")
-            }
-        }
         release {
             isMinifyEnabled = false
         }
