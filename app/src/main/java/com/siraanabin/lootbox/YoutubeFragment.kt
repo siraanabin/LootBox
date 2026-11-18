@@ -492,6 +492,9 @@ class YoutubeFragment : Fragment() {
                 'ytm-watch #player-container-id video, ytm-watch #player-container video { max-width:100% !important; }',
                 '.lb-anc { transform:none !important; contain:none !important; filter:none !important; will-change:auto !important; perspective:none !important; }',
                 '.lb-pin { top:0 !important; margin-top:0 !important; z-index:2147483000 !important; background:#000 !important; }',
+                '.lb-fullw { width:100% !important; max-width:100% !important; min-width:0 !important; flex:1 1 100% !important; float:none !important; margin-right:0 !important; padding-right:0 !important; box-sizing:border-box !important; }',
+                'ytm-compact-autoplay-renderer, ytm-compact-autoplay-renderer > * { max-width:100% !important; padding-right:0 !important; margin-right:0 !important; }',
+                '.lb-nopr { padding-right:0 !important; margin-right:0 !important; }',
                 '.lb-sticky { position:sticky !important; top:0 !important; z-index:2147483000 !important; background:#000 !important; }',
                 /* Full-width, square-corner video thumbnails. */
                 'ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer, ytm-browse ytd-rich-item-renderer { display:block !important; box-sizing:border-box !important; width:100% !important; max-width:100% !important; margin:0 0 10px 0 !important; padding:0 !important; }',
@@ -536,7 +539,10 @@ class YoutubeFragment : Fragment() {
                 try { parsed = new URL(link.href, location.href); } catch (e) { return; }
                 var videoId = parsed.searchParams.get('v');
                 if (!videoId) return;
-                var info = card.querySelector('ytm-media-item, .media-item-info, .details, #details, .media-channel, ytm-video-meta-block') || card;
+                // Put the button only inside the text block. Never pad a container that holds the thumbnail,
+                // otherwise the thumbnail shrinks and a black strip appears on the right.
+                var info = card.querySelector('.media-item-info, .details, #details, .media-channel, ytm-video-meta-block');
+                if (!info || info.querySelector('ytm-thumbnail')) return;
                 info.style.setProperty('position', 'relative');
                 info.style.setProperty('padding-right', '60px');
                 var button = document.createElement('button');
@@ -594,6 +600,66 @@ class YoutubeFragment : Fragment() {
                 clearPins();
               }
             }
+            function fixWatchWidths() {
+              var w = window.innerWidth;
+              var imgs = document.querySelectorAll('ytm-watch img');
+              for (var n = 0; n < imgs.length; n++) {
+                var ir = imgs[n].getBoundingClientRect();
+                if (ir.width < w * 0.5 || ir.height < 40) continue;
+                var el = imgs[n].parentElement;
+                while (el && el !== document.body && el !== document.documentElement) {
+                  var r = el.getBoundingClientRect();
+                  if (r.width >= w * 0.99) {
+                    if (parseFloat(getComputedStyle(el).paddingRight) > 8) el.classList.add('lb-nopr');
+                    break;
+                  }
+                  if (r.left <= 2 && r.width >= w * 0.5) {
+                    el.classList.add('lb-fullw');
+                    var par = el.parentElement;
+                    if (par) {
+                      // Hide a leftover side element (for example an empty Autoplay toggle) that keeps the card narrow.
+                      for (var i = 0; i < par.children.length; i++) {
+                        var sib = par.children[i];
+                        if (sib === el) continue;
+                        var sr = sib.getBoundingClientRect();
+                        if (sr.width > 0 && sr.left >= r.right - 2 && !sib.querySelector('a[href*="/watch?v="]')) {
+                          sib.style.setProperty('display', 'none', 'important');
+                        }
+                      }
+                    }
+                  }
+                  el = el.parentElement;
+                }
+              }
+            }
+            // If a thumbnail is still narrow after the fix, show a small red report so the cause can be read from a screenshot.
+            function lbDiag() {
+              var w = window.innerWidth, old = document.getElementById('lb-debug'), bad = null;
+              var imgs = document.querySelectorAll('ytm-watch img');
+              for (var n = 0; n < imgs.length && !bad; n++) {
+                var ir = imgs[n].getBoundingClientRect();
+                if (ir.width >= w * 0.5 && ir.width < w * 0.97 && ir.left <= 2 && ir.height > 80) bad = imgs[n];
+              }
+              if (!bad) { if (old) old.remove(); return; }
+              var t = [], el = bad;
+              for (var k = 0; k < 9 && el && el !== document.documentElement; k++) {
+                var cs = getComputedStyle(el), rr = el.getBoundingClientRect();
+                t.push(el.tagName.toLowerCase() + '.' + String(el.className).slice(0, 28) + ' w=' + Math.round(rr.width) +
+                  ' d=' + cs.display + ' pr=' + cs.paddingRight + ' mr=' + cs.marginRight + ' fx=' + String(cs.flex).slice(0, 14) +
+                  ' st=' + String(el.getAttribute('style') || '').slice(0, 30));
+                el = el.parentElement;
+              }
+              var box = old || document.createElement('div');
+              box.id = 'lb-debug';
+              box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;background:#7f1d1d;color:#fff;font:9px monospace;padding:4px;white-space:pre-wrap;max-height:40vh;overflow:auto';
+              box.textContent = 'LB-DEBUG w=' + w + '\n' + t.join('\n');
+              if (!box.parentNode) document.body.appendChild(box);
+            }
+            var lbWidthTimer = null;
+            function scheduleFixWidths() {
+              if (lbWidthTimer) return;
+              lbWidthTimer = setTimeout(function() { lbWidthTimer = null; fixWatchWidths(); setTimeout(lbDiag, 700); }, 350);
+            }
             function fixFeedGap() {
               if (location.pathname !== '/' || window.scrollY > 2) return;
               var cards = document.querySelectorAll('ytm-browse ytm-rich-item-renderer, ytm-browse ytm-video-with-context-renderer');
@@ -615,7 +681,7 @@ class YoutubeFragment : Fragment() {
                 host.style.setProperty('margin-top', next + 'px', 'important');
               }
             }
-            function applyLootBoxFeed() { ensureLootBoxStyle(); hideShorts(); addDownloadButtons(); if (window.__lbRole === 'watch') { keepWatchPlayerAtTop(); } else { fixFeedGap(); } }
+            function applyLootBoxFeed() { ensureLootBoxStyle(); hideShorts(); addDownloadButtons(); if (window.__lbRole === 'watch') { keepWatchPlayerAtTop(); scheduleFixWidths(); } else { fixFeedGap(); } }
             applyLootBoxFeed();
             if (!window.__lootboxYoutubeObserver) {
               window.__lootboxYoutubeObserver = new MutationObserver(applyLootBoxFeed);

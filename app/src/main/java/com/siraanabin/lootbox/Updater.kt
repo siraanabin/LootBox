@@ -37,8 +37,8 @@ object Updater {
                 if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
                 when {
                     info == null -> if (!silent) toast(activity, "Could not check for updates")
-                    isNewer(info) -> askUpdate(activity, info)
-                    else -> if (!silent) showLatest(activity, info)
+                    isNewer(info) -> showStatus(activity, info, updateAvailable = true)
+                    else -> if (!silent) showStatus(activity, info, updateAvailable = false)
                 }
             }
         }
@@ -79,21 +79,23 @@ object Updater {
         }
     }
 
-    private fun askUpdate(activity: AppCompatActivity, info: Info) {
-        AlertDialog.Builder(activity)
-            .setTitle("Update available")
-            .setMessage("Current version: ${BuildConfig.VERSION_NAME}\nServer version: ${info.name}\nStatus: Update available")
-            .setPositiveButton("Update") { _, _ -> download(activity, info) }
-            .setNegativeButton("Later", null)
-            .show()
-    }
-
-    private fun showLatest(activity: AppCompatActivity, info: Info) {
-        AlertDialog.Builder(activity)
-            .setTitle("You're using the latest version")
-            .setMessage("Current version: ${BuildConfig.VERSION_NAME}\\nServer version: ${info.name}\\nStatus: You're up to date")
-            .setPositiveButton("OK", null)
-            .show()
+    /** Shows installed version, server version and status. Offers "Update" only when a newer build exists. */
+    private fun showStatus(activity: AppCompatActivity, info: Info, updateAvailable: Boolean) {
+        val status = if (updateAvailable) "Update available" else "Up to date"
+        val message = "Current version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n" +
+            "Server version: ${info.name} (${info.code})\n" +
+            "Status: $status"
+        val builder = AlertDialog.Builder(activity)
+            .setTitle("App update")
+            .setMessage(message)
+        if (updateAvailable) {
+            builder
+                .setPositiveButton("Update") { _, _ -> download(activity, info) }
+                .setNegativeButton("Later", null)
+        } else {
+            builder.setPositiveButton("OK", null)
+        }
+        builder.show()
     }
 
     private fun download(activity: AppCompatActivity, info: Info) {
