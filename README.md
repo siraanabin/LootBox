@@ -30,7 +30,7 @@ app/src/main/res/                    layouts, colors (light + night), icons, log
 ```
 
 ## Build
-- GitHub: upload/push the project contents to the `main` branch. GitHub Actions builds a signed APK and publishes it as a Release.
+- GitHub: push to `main`, then open Actions -> "Build LootBox APK" -> Artifacts.
 - Android Studio: open this folder (File > Open), let Gradle sync, press Run.
   (No gradle wrapper is included; Android Studio can create one, or use `gradle assembleDebug`.)
 
@@ -46,10 +46,18 @@ app/src/main/res/                    layouts, colors (light + night), icons, log
 - The version number is the Actions run number, so no manual version bump is needed.
 - The app checks the latest Release on start (and in Settings > App update) and offers to install it.
 - The APK is signed with your own private key stored in GitHub Secrets (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`),
-  so a new APK installs over the old one. Configure the four repository secrets before the first build: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`. Never commit the keystore file. Keep a backup copy: if it is lost, updates cannot be installed. The workflow uses version codes starting above 10000 to ensure the new build is newer than older 1xxx builds.
+  so a new APK installs over the old one. Never commit the keystore file. Keep a backup copy: if it is lost, updates cannot be installed.
 - Settings > Update download engine updates yt-dlp without a new APK. Use it when YouTube stops working.
 - The repo must stay public for the in-app update check.
 
 ## Other features
 - Quality choice before each YouTube / Facebook / Instagram download (default in Settings).
 - Optional playlist download, cookies.txt import for private videos, auto retry on network errors.
+
+## GitHub Actions setup
+1. Upload the contents of this ZIP to the root of the `siraanabin/LootBox` repository on the `main` branch (do not upload the enclosing folder).
+2. In GitHub: Settings -> Secrets and variables -> Actions, add these repository secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
+3. `KEYSTORE_BASE64` must be the Base64 text of the same keystore that signed the already-installed app. Keep the keystore and passwords private; never commit them.
+4. Each push to `main` builds a signed APK, publishes a GitHub Release, and updates `version.json` for the in-app updater.
+
+The version baseline in this package is 3.1034 (versionCode 1034); the first build after upload will be 3.1035. The build will fail until all four signing secrets are configured.

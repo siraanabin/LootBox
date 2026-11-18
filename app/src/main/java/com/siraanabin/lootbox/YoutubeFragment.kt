@@ -81,7 +81,7 @@ class YoutubeFragment : Fragment() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(16), 0, dp(12), 0)
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48))
         }
         val logo = TextView(ctx).apply {
             text = "▶"
@@ -110,7 +110,7 @@ class YoutubeFragment : Fragment() {
             contentDescription = "Search YouTube"
             setOnClickListener { openSearch() }
         }
-        header.addView(searchButton, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(searchButton, LinearLayout.LayoutParams(dp(44), dp(44)))
         headerRow = header
         topChrome.addView(header)
 
@@ -120,7 +120,7 @@ class YoutubeFragment : Fragment() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(4), 0, dp(12), 0)
             visibility = View.GONE
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56))
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48))
         }
         val backBtn = TextView(ctx).apply {
             text = "←"
@@ -495,6 +495,7 @@ class YoutubeFragment : Fragment() {
                 '.lb-pin { top:0 !important; margin-top:0 !important; z-index:2147483000 !important; background:#000 !important; }',
                 '.lb-fullw { width:100% !important; max-width:100% !important; min-width:0 !important; flex:1 1 100% !important; float:none !important; margin-right:0 !important; padding-right:0 !important; box-sizing:border-box !important; }',
                 'ytm-compact-autoplay-renderer, ytm-compact-autoplay-renderer > * { max-width:100% !important; padding-right:0 !important; margin-right:0 !important; }',
+                '.lb-feed button[aria-label*="mute" i], .lb-feed button[aria-label*="aption" i], .lb-feed button[aria-label*="ubtitle" i] { display:none !important; }',
                 '.lb-nopr { padding-right:0 !important; margin-right:0 !important; }',
                 '.lb-sticky { position:sticky !important; top:0 !important; z-index:2147483000 !important; background:#000 !important; }',
                 /* Full-width, square-corner video thumbnails. */
@@ -527,6 +528,7 @@ class YoutubeFragment : Fragment() {
               if (style.parentNode !== target) target.appendChild(style);
             }
             ensureLootBoxStyle();
+            if (window.__lbRole === 'feed') document.documentElement.classList.add('lb-feed');
             function hideShorts() {
               document.querySelectorAll('ytm-reel-shelf-renderer, ytm-shorts-lockup-view-model, ytm-reel-item-renderer, ytd-reel-shelf-renderer, ytd-rich-shelf-renderer[is-shorts]').forEach(function(el) {
                 el.style.setProperty('display', 'none', 'important');
@@ -667,35 +669,58 @@ class YoutubeFragment : Fragment() {
                 window.LootBoxBridge.download('https://www.youtube.com/watch?v=' + encodeURIComponent(id));
               }
             }
-            // Watch page: add a Download button to the action row (like / dislike / share / download).
-            function addWatchDownload() {
-              if (window.__lbRole !== 'watch') return;
-              if (location.pathname !== '/watch') return;
-              var share = document.querySelector('ytm-watch button[aria-label*="hare" i]');
-              if (!share) return;
-              var item = share, row = share.parentElement;
-              while (row && row !== document.body && row.querySelectorAll('button').length < 3) {
-                item = row;
-                row = row.parentElement;
-              }
-              if (!row || row === document.body) return;
-              if (row.querySelector('button[aria-label*="ownload" i]:not(.lootbox-download):not(#lb-watch-dl)')) return;
-              var old = document.getElementById('lb-watch-dl');
-              if (old && old.parentElement === row) return;
-              if (old) old.remove();
+            function lbMakeBtn(fab) {
               var btn = document.createElement('button');
               btn.id = 'lb-watch-dl';
               btn.type = 'button';
               btn.setAttribute('aria-label', 'Download video');
-              btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:48px;height:48px;margin:0 2px;padding:0;border:0;background:transparent;color:#fff;';
+              if (fab) {
+                btn.setAttribute('data-fab', '1');
+                btn.style.cssText = 'position:fixed;top:calc(56.25vw + 10px);right:10px;z-index:2147483000;width:44px;height:44px;border-radius:50%;border:0;padding:0;background:rgba(38,59,203,0.85);display:flex;align-items:center;justify-content:center;';
+              } else {
+                btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:48px;height:48px;margin:0 2px;padding:0;border:0;background:transparent;';
+              }
               btn.innerHTML = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" style="fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M12 3v12m-5-5 5 5 5-5M4 20h16"/></svg>';
               btn.addEventListener('click', function(e) {
                 e.preventDefault(); e.stopPropagation();
                 lbDownloadCurrent();
               });
-              row.insertBefore(btn, item.nextSibling);
+              return btn;
             }
-            // Same, equal spacing for the category chips (All, Natok, News ...).
+            function lbFindShare() {
+              var cands = document.querySelectorAll('[aria-label*="hare" i]');
+              for (var i = 0; i < cands.length; i++) {
+                var r = cands[i].getBoundingClientRect();
+                if (r.width > 10 && r.height > 10 && r.top > window.innerWidth * 0.56) return cands[i];
+              }
+              return null;
+            }
+            // Watch page: add a Download button to the action row (like / dislike / share / download).
+            // If that row cannot be found, a small floating button under the player is used instead.
+            function addWatchDownload() {
+              if (window.__lbRole !== 'watch' || location.pathname !== '/watch') return;
+              var old = document.getElementById('lb-watch-dl');
+              var share = lbFindShare();
+              if (!share) {
+                window.__lbDlTries = (window.__lbDlTries || 0) + 1;
+                if (window.__lbDlTries > 6 && !old) document.body.appendChild(lbMakeBtn(true));
+                return;
+              }
+              var item = share, row = share.parentElement;
+              while (row && row !== document.body && row.querySelectorAll('button, [role="button"]').length < 3) {
+                item = row;
+                row = row.parentElement;
+              }
+              if (!row || row === document.body) return;
+              if (row.querySelector('[aria-label*="ownload" i]:not(.lootbox-download):not(#lb-watch-dl)')) {
+                if (old) old.remove();
+                return;
+              }
+              if (old && old.parentElement === row && !old.getAttribute('data-fab')) return;
+              if (old) old.remove();
+              row.insertBefore(lbMakeBtn(false), item.nextSibling);
+            }
+            // Category chips: equal gap, and the whole row starts close to the screen edge.
             function fixChips() {
               var chips = document.querySelectorAll('ytm-chip-cloud-chip-renderer');
               if (!chips.length) return;
@@ -707,15 +732,23 @@ class YoutubeFragment : Fragment() {
               host.style.setProperty('flex-wrap', 'nowrap', 'important');
               host.style.setProperty('justify-content', 'flex-start', 'important');
               host.style.setProperty('gap', '12px', 'important');
-              host.style.setProperty('padding', '0 12px', 'important');
+              host.style.setProperty('padding', '0 8px', 'important');
               host.style.setProperty('margin', '0', 'important');
-              // If an outer element scrolls (not the host), make the host as wide as its chips so the
-              // right-end gap (same 12px) is also part of the scroll area.
               var ox = getComputedStyle(host).overflowX;
               if (ox !== 'auto' && ox !== 'scroll') {
                 host.style.setProperty('width', 'max-content', 'important');
                 host.style.setProperty('min-width', '100%', 'important');
                 host.style.setProperty('box-sizing', 'border-box', 'important');
+              }
+              var anc = host.parentElement, depth = 0;
+              while (anc && anc !== document.body && depth < 4) {
+                anc.style.setProperty('padding-left', '0', 'important');
+                anc.style.setProperty('padding-right', '0', 'important');
+                anc.style.setProperty('margin-left', '0', 'important');
+                anc.style.setProperty('margin-right', '0', 'important');
+                if (anc.matches('ytm-feed-filter-chip-bar-renderer, ytm-chip-cloud-renderer')) break;
+                anc = anc.parentElement;
+                depth++;
               }
               for (var i = 0; i < host.children.length; i++) {
                 var c = host.children[i];
@@ -724,32 +757,87 @@ class YoutubeFragment : Fragment() {
                 c.style.setProperty('flex', '0 0 auto', 'important');
                 c.style.setProperty('margin', '0', 'important');
               }
+              var first = null;
               for (var j = 0; j < chips.length; j++) {
                 chips[j].style.setProperty('margin', '0', 'important');
                 chips[j].style.setProperty('flex', '0 0 auto', 'important');
+                if (!first && chips[j].getBoundingClientRect().width > 0) first = chips[j];
+              }
+              // Measured correction: if the first chip still starts far from the edge, pull the row left.
+              var scrolled = false, p = host;
+              for (var k = 0; k < 6 && p; k++) { if (p.scrollLeft > 0) scrolled = true; p = p.parentElement; }
+              if (first && !scrolled) {
+                var left = first.getBoundingClientRect().left;
+                if (left > 11) {
+                  var cur = parseFloat(host.getAttribute('data-lb-shift') || '0');
+                  var next = cur - (left - 8);
+                  host.setAttribute('data-lb-shift', String(next));
+                  host.style.setProperty('margin-left', next + 'px', 'important');
+                }
+              }
+              // Vertical gap between the header and the chips: keep the first chip about 2px from the top.
+              if (first && window.scrollY < 2) {
+                var topv = first.getBoundingClientRect().top;
+                if (topv > 4) {
+                  var curY = parseFloat(host.getAttribute('data-lb-shifty') || '0');
+                  var nextY = curY - (topv - 2);
+                  host.setAttribute('data-lb-shifty', String(nextY));
+                  host.style.setProperty('margin-top', nextY + 'px', 'important');
+                }
+              }
+            }
+            function lbBox(v) {
+              return v.closest('ytm-inline-player, ytm-video-with-context-renderer, ytm-rich-item-renderer') || (v.parentElement ? v.parentElement.parentElement : null);
+            }
+            // Feed previews: hide the "tap to unmute" and CC icons on top of the preview video.
+            function hidePreviewControls() {
+              if (window.__lbRole !== 'feed') return;
+              var vids = document.querySelectorAll('video');
+              for (var i = 0; i < vids.length; i++) {
+                var vr = vids[i].getBoundingClientRect();
+                if (vr.height < 50) continue;
+                var box = lbBox(vids[i]);
+                if (!box) continue;
+                var ctr = box.querySelectorAll('button, [role="button"]');
+                var top = null;
+                for (var j = 0; j < ctr.length; j++) {
+                  var b = ctr[j];
+                  if (b.classList.contains('lootbox-download')) continue;
+                  var r = b.getBoundingClientRect();
+                  var hidden = b.getAttribute('data-lb-ph') === '1';
+                  if (hidden) continue;
+                  if (r.width > 0 && r.left > vr.left + vr.width * 0.7 && r.top >= vr.top && r.top <= vr.top + vr.height * 0.5) {
+                    if (!top || r.top < top.r.top) top = { el: b, r: r };
+                    b.setAttribute('data-lb-ph', '1');
+                  }
+                }
+                if (top) top.el.setAttribute('data-lb-mutebtn', '1');
+                var all = box.querySelectorAll('[data-lb-ph="1"]');
+                for (var m = 0; m < all.length; m++) all[m].style.setProperty('display', 'none', 'important');
               }
             }
             // Videos start with sound on (feed previews start muted by default).
             function autoUnmute() {
               if (!window.LootBoxBridge || !window.LootBoxBridge.canUnmute) return;
+              hidePreviewControls();
               var allowed = false;
               try { allowed = window.LootBoxBridge.canUnmute(window.__lbRole); } catch (e) { return; }
               if (!allowed) return;
               var vids = document.querySelectorAll('video');
               for (var i = 0; i < vids.length; i++) {
                 (function(v) {
-                  if (v.paused || v.__lbSrc === v.currentSrc) return;
-                  if (v.muted || v.volume === 0) {
-                    v.__lbSrc = v.currentSrc;
-                    var b = document.querySelector('button[aria-label*="nmute" i]');
-                    if (b) b.click();
-                    setTimeout(function() {
-                      if (v.muted) v.muted = false;
-                      if (v.volume === 0) v.volume = 1;
-                    }, 250);
-                  } else {
-                    v.__lbSrc = v.currentSrc;
-                  }
+                  if (v.paused) return;
+                  if (!v.muted && v.volume > 0) return;
+                  if (v.__lbSrc !== v.currentSrc) { v.__lbSrc = v.currentSrc; v.__lbTry = 0; }
+                  if (v.__lbTry >= 8) return;
+                  v.__lbTry++;
+                  var scope = lbBox(v) || document;
+                  var b = scope.querySelector('[data-lb-mutebtn="1"], [aria-label*="nmute" i]') || document.querySelector('[aria-label*="nmute" i]');
+                  if (b) { try { b.click(); } catch (e2) {} }
+                  setTimeout(function() {
+                    if (v.muted) v.muted = false;
+                    if (v.volume === 0) v.volume = 1;
+                  }, 250);
                 })(vids[i]);
               }
             }
